@@ -23,6 +23,7 @@ public:
 // 重写
 public:
 	virtual BOOL InitInstance();
+	virtual int ExitInstance() override;
 
 // 实现
 
@@ -30,3 +31,4 @@ public:
 };
 
 extern CNetworkClientApp theApp;
+

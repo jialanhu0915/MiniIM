@@ -40,6 +40,13 @@ CNetworkServerApp theApp;
 
 BOOL CNetworkServerApp::InitInstance()
 {
+	// 初始化 Winsock 库
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+	{
+		AfxMessageBox(_T("WSAStartup 失败！"));
+		return FALSE;
+	}
 	// 如果应用程序存在以下情况，Windows XP 上需要 InitCommonControlsEx()
 	// 使用 ComCtl32.dll 版本 6 或更高版本来启用可视化方式，
 	//则需要 InitCommonControlsEx()。  否则，将无法创建窗口。
@@ -100,8 +107,15 @@ BOOL CNetworkServerApp::InitInstance()
 	ControlBarCleanUp();
 #endif
 
+
 	// 由于对话框已关闭，所以将返回 FALSE 以便退出应用程序，
 	//  而不是启动应用程序的消息泵。
 	return FALSE;
 }
 
+// 清理 Winsock 库
+int CNetworkServerApp::ExitInstance()
+{
+	WSACleanup();
+	return CWinApp::ExitInstance();
+}

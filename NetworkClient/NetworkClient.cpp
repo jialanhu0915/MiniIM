@@ -40,6 +40,13 @@ CNetworkClientApp theApp;
 
 BOOL CNetworkClientApp::InitInstance()
 {
+	// 初始化 Winsock 库
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+	{
+		AfxMessageBox(_T("WSAStartup 失败！"));
+		return FALSE;
+	}
 	// 如果应用程序存在以下情况，Windows XP 上需要 InitCommonControlsEx()
 	// 使用 ComCtl32.dll 版本 6 或更高版本来启用可视化方式，
 	//则需要 InitCommonControlsEx()。  否则，将无法创建窗口。
@@ -105,3 +112,9 @@ BOOL CNetworkClientApp::InitInstance()
 	return FALSE;
 }
 
+// 清理 Winsock 库
+int CNetworkClientApp::ExitInstance()
+{
+	WSACleanup();
+	return CWinApp::ExitInstance();
+}

@@ -65,6 +65,7 @@ BEGIN_MESSAGE_MAP(CNetworkServerDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_STN_CLICKED(IDC_STATIC_PORT, &CNetworkServerDlg::OnStnClickedStaticPort)
 END_MESSAGE_MAP()
 
 
@@ -153,3 +154,8 @@ HCURSOR CNetworkServerDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+
+void CNetworkServerDlg::OnStnClickedStaticPort()
+{
+	// TODO: 在此添加控件通知处理程序代码
+}
