@@ -187,6 +187,8 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CConnectSocket.h" />
+    <ClInclude Include="CListenSocket.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="NetworkServer.h" />
     <ClInclude Include="NetworkServerDlg.h" />
@@ -195,6 +197,8 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CConnectSocket.cpp" />
+    <ClCompile Include="CListenSocket.cpp" />
     <ClCompile Include="NetworkServer.cpp" />
     <ClCompile Include="NetworkServerDlg.cpp" />
     <ClCompile Include="pch.cpp">

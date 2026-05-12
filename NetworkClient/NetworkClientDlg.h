@@ -3,7 +3,7 @@
 //
 
 #pragma once
-
+#include "CConnectSocket.h"
 
 // CNetworkClientDlg 对话框
 class CNetworkClientDlg : public CDialogEx
@@ -32,9 +32,18 @@ protected:
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
 public:
+	CConnectSocket m_connectSocket; // 连接套接字
+	void OnReceive();
+	void OnClose();
+	void UpdateLog(const CString& str);
+	void OnConnect();
+
 	afx_msg void OnEnChangeEdit1();
 	afx_msg void OnIpnFieldchangedIpaddress1(NMHDR* pNMHDR, LRESULT* pResult);
-	afx_msg void OnBnClickedButtonStart();
-	afx_msg void OnBnClickedButtonStop();
 	afx_msg void OnEnChangeEditPort();
+	afx_msg void OnBnClickedButtonConnect();
+	afx_msg void OnBnClickedButtonDisconnect();
+	afx_msg void OnBnClickedButtonSend();
+	afx_msg void OnBnClickedCancel();
+	afx_msg void OnEnChangeEditMsg();
 };

@@ -54,6 +54,7 @@ CNetworkClientDlg::CNetworkClientDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_NETWORKCLIENT_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	m_connectSocket.m_pDlg = this;
 }
 
 void CNetworkClientDlg::DoDataExchange(CDataExchange* pDX)
@@ -65,11 +66,12 @@ BEGIN_MESSAGE_MAP(CNetworkClientDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
-	ON_EN_CHANGE(IDC_EDIT1, &CNetworkClientDlg::OnEnChangeEdit1)
-	ON_NOTIFY(IPN_FIELDCHANGED, IDC_IPADDRESS1, &CNetworkClientDlg::OnIpnFieldchangedIpaddress1)
-	ON_BN_CLICKED(IDC_BUTTON_START, &CNetworkClientDlg::OnBnClickedButtonStart)
-	ON_BN_CLICKED(IDC_BUTTON_STOP, &CNetworkClientDlg::OnBnClickedButtonStop)
 	ON_EN_CHANGE(IDC_EDIT_PORT, &CNetworkClientDlg::OnEnChangeEditPort)
+	ON_BN_CLICKED(IDC_BUTTON_CONNECT, &CNetworkClientDlg::OnBnClickedButtonConnect)
+	ON_BN_CLICKED(IDC_BUTTON_DISCONNECT, &CNetworkClientDlg::OnBnClickedButtonDisconnect)
+	ON_BN_CLICKED(IDC_BUTTON_SEND, &CNetworkClientDlg::OnBnClickedButtonSend)
+	ON_BN_CLICKED(IDCANCEL, &CNetworkClientDlg::OnBnClickedCancel)
+	ON_EN_CHANGE(IDC_EDIT_MSG, &CNetworkClientDlg::OnEnChangeEditMsg)
 END_MESSAGE_MAP()
 
 
@@ -105,6 +107,9 @@ BOOL CNetworkClientDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+	GetDlgItem(IDC_BUTTON_DISCONNECT)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
+	SetDlgItemText(IDC_STATIC_STATUS, _T("未连接"));
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -176,17 +181,121 @@ void CNetworkClientDlg::OnIpnFieldchangedIpaddress1(NMHDR* pNMHDR, LRESULT* pRes
 	*pResult = 0;
 }
 
-void CNetworkClientDlg::OnBnClickedButtonStart()
-{
-	// TODO: 在此添加控件通知处理程序代码
-}
-
-void CNetworkClientDlg::OnBnClickedButtonStop()
-{
-	// TODO: 在此添加控件通知处理程序代码
-}
-
 void CNetworkClientDlg::OnEnChangeEditPort()
+{
+	// TODO:  如果该控件是 RICHEDIT 控件，它将不
+	// 发送此通知，除非重写 CDialogEx::OnInitDialog()
+	// 函数并调用 CRichEditCtrl().SetEventMask()，
+	// 同时将 ENM_CHANGE 标志“或”运算到掩码中。
+
+	// TODO:  在此添加控件通知处理程序代码
+}
+
+void CNetworkClientDlg::OnBnClickedButtonConnect()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	GetDlgItem(IDC_BUTTON_CONNECT)->EnableWindow(FALSE);
+	CString strIP, strPort;
+	GetDlgItemText(IDC_IPADDRESS, strIP);
+	GetDlgItemText(IDC_EDIT_PORT, strPort);
+	int port = _ttoi(strPort);
+
+	if (strIP.IsEmpty() || port <= 0 || port > 65535)
+	{
+		AfxMessageBox(_T("请输入有效的IP地址和端口！"));
+		GetDlgItem(IDC_BUTTON_CONNECT)->EnableWindow(TRUE);
+		return;
+	}
+
+	if (!m_connectSocket.Create())
+	{
+		UpdateLog(_T("[错误] 创建 socket 失败"));
+		GetDlgItem(IDC_BUTTON_CONNECT)->EnableWindow(TRUE);
+		return;
+	}
+
+	m_connectSocket.Connect(strIP, port);
+	UpdateLog(_T("[连接] 正在连接 ") + strIP + _T(":") + strPort);
+}
+
+void CNetworkClientDlg::OnBnClickedButtonDisconnect()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_connectSocket.Close();
+	SetDlgItemText(IDC_STATIC_STATUS, _T("未连接"));
+	GetDlgItem(IDC_BUTTON_CONNECT)->EnableWindow(TRUE);
+	GetDlgItem(IDC_BUTTON_DISCONNECT)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
+	UpdateLog(_T("[断开] 已断开连接"));
+}
+
+void CNetworkClientDlg::OnBnClickedButtonSend()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CString strMsg;
+	GetDlgItemText(IDC_EDIT_MSG, strMsg);
+	if (strMsg.IsEmpty())
+	{
+		AfxMessageBox(_T("请输入消息！"));
+		return;
+	}
+
+	CT2A asciiMsg(strMsg);
+	int nSent = m_connectSocket.Send((LPCSTR)asciiMsg, strlen(asciiMsg));
+	if (nSent == SOCKET_ERROR)
+	{
+		UpdateLog(_T("[错误] 发送失败"));
+		return;
+	}
+	UpdateLog(_T("[发送] ") + strMsg);
+	SetDlgItemText(IDC_EDIT_MSG, _T(""));
+}
+
+void CNetworkClientDlg::OnConnect()
+{
+	SetDlgItemText(IDC_STATIC_STATUS, _T("已连接"));
+	GetDlgItem(IDC_BUTTON_DISCONNECT)->EnableWindow(TRUE);
+	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(TRUE);
+	UpdateLog(_T("[连接] 连接成功"));
+}
+
+void CNetworkClientDlg::OnReceive()
+{
+	char szBuf[1024] = { 0 };
+	int nRead = m_connectSocket.Receive(szBuf, sizeof(szBuf) - 1);
+	if (nRead > 0)
+	{
+		szBuf[nRead] = '\0';
+		UpdateLog(_T("[收到] ") + CString(szBuf));
+	}
+}
+
+void CNetworkClientDlg::OnClose()
+{
+	m_connectSocket.Close();
+	SetDlgItemText(IDC_STATIC_STATUS, _T("未连接"));
+	GetDlgItem(IDC_BUTTON_CONNECT)->EnableWindow(TRUE);
+	GetDlgItem(IDC_BUTTON_DISCONNECT)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
+	UpdateLog(_T("[断开] 服务端已断开"));
+}
+
+void CNetworkClientDlg::UpdateLog(const CString& str)
+{
+	CString strLog;
+	GetDlgItemText(IDC_EDIT_LOG, strLog);
+	strLog += str + _T("\r\n");
+	SetDlgItemText(IDC_EDIT_LOG, strLog);
+}
+
+
+void CNetworkClientDlg::OnBnClickedCancel()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CDialogEx::OnCancel();
+}
+
+void CNetworkClientDlg::OnEnChangeEditMsg()
 {
 	// TODO:  如果该控件是 RICHEDIT 控件，它将不
 	// 发送此通知，除非重写 CDialogEx::OnInitDialog()

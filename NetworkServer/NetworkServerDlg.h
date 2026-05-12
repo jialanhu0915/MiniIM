@@ -3,7 +3,8 @@
 //
 
 #pragma once
-
+#include "CConnectSocket.h"
+#include "CListenSocket.h"
 
 // CNetworkServerDlg 对话框
 class CNetworkServerDlg : public CDialogEx
@@ -11,6 +12,9 @@ class CNetworkServerDlg : public CDialogEx
 // 构造
 public:
 	CNetworkServerDlg(CWnd* pParent = nullptr);	// 标准构造函数
+
+	CListenSocket m_listenSocket;
+	CConnectSocket m_connectSocket;
 
 // 对话框数据
 #ifdef AFX_DESIGN_TIME
@@ -33,4 +37,14 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnStnClickedStaticPort();
+	afx_msg void OnEnChangeEditPort();
+
+	void UpdateLog(const CString& str);
+	void OnAccept();
+	void OnReceive();
+	void OnClose();
+
+	afx_msg void OnBnClickedButtonStart();
+	afx_msg void OnBnClickedButtonStop();
+	afx_msg void OnBnClickedButtonSend();
 };

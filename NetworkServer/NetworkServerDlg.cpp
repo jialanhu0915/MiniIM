@@ -54,6 +54,8 @@ CNetworkServerDlg::CNetworkServerDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_NETWORKSERVER_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	m_listenSocket.m_pDlg = this;
+	m_connectSocket.m_pDlg = this;
 }
 
 void CNetworkServerDlg::DoDataExchange(CDataExchange* pDX)
@@ -66,6 +68,10 @@ BEGIN_MESSAGE_MAP(CNetworkServerDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_STN_CLICKED(IDC_STATIC_PORT, &CNetworkServerDlg::OnStnClickedStaticPort)
+	ON_EN_CHANGE(IDC_EDIT_PORT, &CNetworkServerDlg::OnEnChangeEditPort)
+	ON_BN_CLICKED(IDC_BUTTON_START, &CNetworkServerDlg::OnBnClickedButtonStart)
+	ON_BN_CLICKED(IDC_BUTTON_STOP, &CNetworkServerDlg::OnBnClickedButtonStop)
+	ON_BN_CLICKED(IDC_BUTTON_SEND, &CNetworkServerDlg::OnBnClickedButtonSend)
 END_MESSAGE_MAP()
 
 
@@ -101,6 +107,9 @@ BOOL CNetworkServerDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
+	SetDlgItemText(IDC_STATIC_STATUS, _T("空闲"));
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -159,3 +168,123 @@ void CNetworkServerDlg::OnStnClickedStaticPort()
 {
 	// TODO: 在此添加控件通知处理程序代码
 }
+
+void CNetworkServerDlg::OnEnChangeEditPort()
+{
+	// TODO:  如果该控件是 RICHEDIT 控件，它将不
+	// 发送此通知，除非重写 CDialogEx::OnInitDialog()
+	// 函数并调用 CRichEditCtrl().SetEventMask()，
+	// 同时将 ENM_CHANGE 标志“或”运算到掩码中。
+
+	// TODO:  在此添加控件通知处理程序代码
+}
+
+void CNetworkServerDlg::UpdateLog(const CString& str)
+{
+	CString strLog;
+	GetDlgItemText(IDC_EDIT_LOG, strLog);
+	strLog += str + _T("\r\n");
+	SetDlgItemText(IDC_EDIT_LOG, strLog);
+}
+
+void CNetworkServerDlg::OnBnClickedButtonStart() 
+{
+	CString strPort;
+	GetDlgItemText(IDC_EDIT_PORT, strPort);
+	int port = _ttoi(strPort);
+	if (port < 0 || port > 65535)
+	{
+		AfxMessageBox(_T("请输入有效的端口号（0-65535）"));
+		return;
+	}
+
+	if (!m_listenSocket.Create(port))
+	{
+		AfxMessageBox(_T("创建监听套接字失败"));
+		return;
+	}
+	
+	m_listenSocket.Listen();
+	SetDlgItemText(IDC_STATIC_STATUS, _T("正在监听..."));
+	GetDlgItem(IDC_BUTTON_START)->EnableWindow(FALSE);
+	GetDlgItem(IDC_EDIT_PORT)->EnableWindow(FALSE);
+	UpdateLog(_T("[启动] 开始监听端口 ") + strPort);
+
+}
+
+void CNetworkServerDlg::OnBnClickedButtonStop()
+{
+	m_connectSocket.Close();
+	m_listenSocket.Close();
+
+	SetDlgItemText(IDC_STATIC_STATUS, _T("空闲"));
+	GetDlgItem(IDC_BUTTON_START)->EnableWindow(TRUE);
+	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
+	GetDlgItem(IDC_EDIT_PORT)->EnableWindow(TRUE);
+	UpdateLog(_T("[停止] 已停止监听"));
+}
+
+void CNetworkServerDlg::OnBnClickedButtonSend()
+{
+	CString strMessage;
+	GetDlgItemText(IDC_EDIT_MSG, strMessage);
+	if (strMessage.IsEmpty())
+	{
+		AfxMessageBox(_T("请输入要发送的消息"));
+		return;
+	}
+	//int nSent = m_connectSocket.Send(strMessage.GetBuffer(), strMessage.GetLength());
+
+	CT2A asciiMsg(strMessage);
+	int nSent = m_connectSocket.Send((LPCSTR)asciiMsg, strlen(asciiMsg));
+
+	if (nSent == SOCKET_ERROR)
+	{
+		AfxMessageBox(_T("发送消息失败"));
+		UpdateLog(_T("[错误] 发送消息失败"));
+		return;
+	}
+	UpdateLog(_T("[发送] ") + strMessage);
+	SetDlgItemText(IDC_EDIT_MSG, _T(""));
+}
+
+
+
+void CNetworkServerDlg::OnAccept()
+{
+	if (m_listenSocket.Accept(m_connectSocket))
+	{
+		// 成功接受连接
+		UpdateLog(_T("客户端已连接"));
+		SetDlgItemText(IDC_STATIC_STATUS, _T("已连接"));
+		GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
+		GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(TRUE);
+	}
+	else
+	{
+		UpdateLog(_T("接受连接失败"));
+	}
+}
+
+void CNetworkServerDlg::OnReceive()
+{
+	char szBuf[1024] = { 0 };
+	int nRead = m_connectSocket.Receive(szBuf, sizeof(szBuf) - 1);
+	if ( nRead > 0 )
+	{
+		szBuf[nRead] = '\0';
+		UpdateLog(_T("[接收] ") + CString(szBuf));
+	}
+}
+
+void CNetworkServerDlg::OnClose()
+{
+	m_connectSocket.Close();
+	SetDlgItemText(IDC_STATIC_STATUS, _T("监听中..."));
+	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
+	UpdateLog(_T("[断开] 客户端已断开"));
+}
+
+
+
