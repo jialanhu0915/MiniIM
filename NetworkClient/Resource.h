@@ -18,6 +18,12 @@
 #define IDC_BUTTON_DISCONNECT           1017
 #define IDC_BUTTON_CONNECT              1018
 #define IDC_BUTTON_SEND                 1019
+#define IDC_EDIT_USERNAME               1020
+#define IDC_LIST_FRIENDS                1021
+#define IDC_LIST_CHAT                   1022
+#define IDC_BUTTON_SENDFILE             1023
+#define IDC_BUTTON_ADDFRIEND            1024
+#define IDC_BUTTON_REMOVEFRIEND         1025
 
 // Next default values for new objects
 // 

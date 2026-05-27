@@ -16,6 +16,7 @@
 #define IDC_EDIT_MSG                    1015
 #define IDC_STATIC_MSG                  1016
 #define IDC_BUTTON_SEND                 1019
+#define IDC_LIST_USERS                  1020
 
 // Next default values for new objects
 // 
