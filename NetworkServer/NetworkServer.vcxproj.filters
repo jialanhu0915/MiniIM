@@ -39,6 +39,9 @@
     <ClInclude Include="CConnectSocket.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="SQLiteWrapper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NetworkServer.cpp">
@@ -54,6 +57,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="CConnectSocket.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SQLiteWrapper.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -93,10 +93,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>B:\Miniconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>ws2_32.lib</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;sqlite3.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>B:\Miniconda\Library\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -108,6 +110,9 @@
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -187,6 +192,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CAddFriendDlg.h" />
     <ClInclude Include="CConnectSocket.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="NetworkClient.h" />
@@ -196,6 +202,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CAddFriendDlg.cpp" />
     <ClCompile Include="CConnectSocket.cpp" />
     <ClCompile Include="NetworkClient.cpp" />
     <ClCompile Include="NetworkClientDlg.cpp" />

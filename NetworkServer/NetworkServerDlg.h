@@ -22,13 +22,6 @@
 #include <string>
 #include <unordered_map>
 
-// 在线用户信息
-struct OnlineUser {
-    int         userId;
-    std::string username;
-    std::string ip;
-};
-
 class CNetworkServerDlg : public CDialogEx
 {
 public:
@@ -46,6 +39,7 @@ protected:
     afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
     afx_msg void OnPaint();
     afx_msg HCURSOR OnQueryDragIcon();
+    virtual BOOL PreTranslateMessage(MSG* pMsg);
 
 public:
     // ================================================================
@@ -72,25 +66,43 @@ public:
      */
     void UpdateStatus(const CString& text);
 
+    /**
+	* @brief  处理接收到的消息
+    */
+	void OnMessageReceived(CConnectSocket* pSocket, MsgType msgType, const std::string& json);
+
+    /**
+    * @brief 发送消息到客户端
+    */
+    void SendToClient(CConnectSocket* pSocket, MsgType msgType, const std::string& json);
+
+    /**
+	* @brief 处理客户端断开连接
+	 * @param[in] pSocket 断开连接的客户端套接字
+	 * @note 该方法会在 CConnectSocket::OnClose 中被调用，负责清理相关资源和更新在线用户列表
+    */
+    void OnClientDisconnected(CConnectSocket* pSocket);
+
     // ================================================================
     //  数据
     // ================================================================
 
     CListenSocket   m_listenSocket;
-    CConnectSocket  m_connectSocket;
+	std::vector<CConnectSocket*> m_connectSockets;  // 活跃连接列表
+	CConnectSocket* m_currentSocket = nullptr;   // 临时变量，用于 Accept 时创建新连接
     SQLiteWrapper   m_dbWrapper;
 
     // 在线用户映射
-    std::unordered_map<int, OnlineUser> m_onlineUsers;
+    std::unordered_map<int, CConnectSocket*>  m_userIdToSocket;
+    std::unordered_map<CConnectSocket*, int>  m_socketToUserId;
+    std::unordered_map<int, std::string>      m_userIdToName;
 
     // 协议处理
-    RecvBuffer          m_recvBuf;
     ProtocolDispatcher  m_dispatcher;
 
     // ---- 已有网络回调 ----
     void OnAccept();
-    void OnReceive();
-    void OnClose();
+
 
     // ---- 按钮事件 ----
     afx_msg void OnStnClickedStaticPort();
@@ -101,7 +113,7 @@ public:
 
 private:
     void RegisterProtocolHandlers();
-
+    std::string strGetFriendListJson(int userId);
     // ---- 控件 ----
     CListCtrl m_userList;   // 在线用户列表
 

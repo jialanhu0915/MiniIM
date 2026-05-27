@@ -74,9 +74,12 @@ enum class MsgType : uint32_t
     FILE_RESP       = 0x0021,   // 客户端→服务端→客户端：{"sender_id":int,"receiver_id":int,"file_id":int,"accepted":bool}
 
     // ---- 好友管理 ----
-    FRIEND_ADD      = 0x0030,   // 客户端→服务端：{"user_id":int,"friend_username":"..."}
+    FRIEND_ADD      = 0x0030,   // 客户端<->服务端：{"user_id":int,"friend_username":"..."}
     FRIEND_DEL      = 0x0031,   // 客户端→服务端：{"user_id":int,"friend_id":int}
     FRIEND_LIST     = 0x0032,   // 客户端→服务端→客户端：请求 {"user_id":int}，响应 {"friends":[...]}
+    FRIEND_ACCEPT   = 0x0033,   // 接受好友请求 {"user_id": int, "request_user_id": int}
+    FRIEND_REJECT   = 0x0034,   // 拒绝好友请求 {"user_id": int, "request_user_id": int}
+    FRIEND_ADD_RESP = 0x0035,   // 服务端→客户端：{"user_id":int,"friend_id":int,"friend_username":"...","success":"..."}
 
     // ---- 状态通知 ----
     STATUS_ONLINE   = 0x0040,   // 服务端→客户端：{"user_id":int,"username":"..."}

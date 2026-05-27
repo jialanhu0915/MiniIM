@@ -7,6 +7,7 @@
 #define IDS_ABOUTBOX                    101
 #define IDD_NETWORKCLIENT_DIALOG        102
 #define IDR_MAINFRAME                   128
+#define IDD_DIALOG_ADD_FRIEND           130
 #define IDC_EDIT_LOG                    1004
 #define IDC_STATIC_STATUS               1006
 #define IDC_STATIC_IP                   1011
@@ -19,6 +20,7 @@
 #define IDC_BUTTON_CONNECT              1018
 #define IDC_BUTTON_SEND                 1019
 #define IDC_EDIT_USERNAME               1020
+#define IDC_USERNAME_EDIT               1020
 #define IDC_LIST_FRIENDS                1021
 #define IDC_LIST_CHAT                   1022
 #define IDC_BUTTON_SENDFILE             1023
@@ -29,9 +31,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        130
+#define _APS_NEXT_RESOURCE_VALUE        132
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1020
+#define _APS_NEXT_CONTROL_VALUE         1021
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

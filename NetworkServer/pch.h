@@ -10,6 +10,6 @@
 // 添加要在此处预编译的标头
 #include "framework.h"
 #include <winsock2.h>
-#include <afxsock.h>
+#include <afxmt.h>
 
 #endif //PCH_H

@@ -3,6 +3,16 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Folder Name="/common/">
+    <File Path="Common/FtpHelper.cpp" />
+    <File Path="Common/FtpHelper.h" />
+    <File Path="Common/JsonUtils.h" />
+    <File Path="Common/Protocol.h" />
+  </Folder>
+  <Folder Name="/解决方案项/">
+    <File Path="LEARNING_GUIDE.md" />
+    <File Path="MULTITHREAD_PLAN.md" />
+  </Folder>
   <Project Path="NetworkClient/NetworkClient.vcxproj" />
   <Project Path="NetworkServer/NetworkServer.vcxproj" />
 </Solution>

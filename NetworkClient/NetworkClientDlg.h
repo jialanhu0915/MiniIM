@@ -56,6 +56,7 @@ protected:
     afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
     afx_msg void OnPaint();
     afx_msg HCURSOR OnQueryDragIcon();
+    virtual BOOL PreTranslateMessage(MSG* pMsg);
 
 public:
     // ================================================================
@@ -130,6 +131,8 @@ public:
     void OnConnect();
     void UpdateLog(const CString& str);
 
+
+
 private:
     // ================================================================
     //  UI 控件
@@ -168,6 +171,7 @@ private:
     afx_msg void OnCancel();
     afx_msg void OnEnChangeEditMsg();
     afx_msg void OnEnChangeEditPort();
+    afx_msg void OnSelChangeListFriends();
 
     HICON m_hIcon;
 };

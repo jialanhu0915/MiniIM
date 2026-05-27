@@ -12,14 +12,4 @@ CListenSocket::~CListenSocket()
 
 }
 
-void CListenSocket::OnAccept(int nErrorCode) 
-{
-	if (nErrorCode == 0)
-	{
-		if (m_pDlg)
-		{
-			m_pDlg->OnAccept();
-		}
-	}
-	CAsyncSocket::OnAccept(nErrorCode);
-}
+
