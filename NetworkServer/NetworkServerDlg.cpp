@@ -12,14 +12,15 @@
 #include "afxdialogex.h"
 #include "SQLiteWrapper.h"
 #include "../Common/JsonUtils.h"
+extern thread_local CConnectSocket* g_pCurrentSocket;
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
- // ============================================================================
- // CAboutDlg
- // ============================================================================
+// ============================================================================
+// CAboutDlg
+// ============================================================================
 
 class CAboutDlg : public CDialogEx
 {
@@ -51,7 +52,8 @@ BEGIN_MESSAGE_MAP(CNetworkServerDlg, CDialogEx)
 	ON_EN_CHANGE(IDC_EDIT_PORT, &CNetworkServerDlg::OnEnChangeEditPort)
 	ON_BN_CLICKED(IDC_BUTTON_START, &CNetworkServerDlg::OnBnClickedButtonStart)
 	ON_BN_CLICKED(IDC_BUTTON_STOP, &CNetworkServerDlg::OnBnClickedButtonStop)
-	//ON_BN_CLICKED(IDC_BUTTON_SEND, &CNetworkServerDlg::OnBnClickedButtonSend)
+	ON_MESSAGE(WM_USER_UPDATE_UI, &CNetworkServerDlg::OnUIUpdate)
+	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 // ============================================================================
@@ -131,76 +133,101 @@ BOOL CNetworkServerDlg::PreTranslateMessage(MSG* pMsg) {
 // 协议处理器（你的网络层代码参考）
 // ============================================================================
 void CNetworkServerDlg::RegisterProtocolHandlers() {
+	// ========================================================================
+	  // LOGIN
+	  // ========================================================================
 	m_dispatcher.on(MsgType::LOGIN, [this](const std::string& json) {
-		// TODO: 解析用户名
-		// 1. 检查用户名是否已存在（DB）
+		CConnectSocket* pSocket = g_pCurrentSocket;
+		if (!pSocket) return;
+
 		std::string username = JsonGetString(json, "username");
 		if (username.empty()) {
 			std::string resp = JsonMakeObject({
 				JsonSetString("success","false"),
 				JsonSetString("reason","用户名不能为空")
 				});
-			SendToClient(m_currentSocket, MsgType::LOGIN_RESP, resp);
+			SendToClient(pSocket, MsgType::LOGIN_RESP, resp);
 			return;
 		}
 
-		// 2. 分配 user_id
-		int iUserID = m_dbWrapper.iAddUser(username);
+		// DB 调用 + map 写入 → 加锁
+		int iUserID;
+		std::string friendListJson;
+		std::vector<std::pair<int, CConnectSocket*>> onlineUsers;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			iUserID = m_dbWrapper.iAddUser(username);
 
+			m_userIdToSocket[iUserID] = pSocket;
+			m_socketToUserId[pSocket] = iUserID;
+			m_userIdToName[iUserID] = username;
 
-		// 3. 发送 LOGIN_RESP（含好友列表 + 离线消息）
-		m_userIdToSocket[iUserID] = m_currentSocket;
-		m_socketToUserId[m_currentSocket] = iUserID;
-		m_userIdToName[iUserID] = username;
-		OnUserLogin(iUserID, username, "unknown");
+			// copy 好友列表和在线用户（锁内准备数据，锁外发送）
+			friendListJson = strGetFriendListJson(iUserID);
+			for (auto& it : m_userIdToSocket) {
+				if (it.first != iUserID) {
+					onlineUsers.push_back(it);
+				}
+			}
+		}
 
-		std::string friendListJson = strGetFriendListJson(iUserID);
+		// UI 更新
+		PostUIUpdate(UIUpdateType::LOGIN, _T(""), iUserID, username, pSocket->m_clientIP);
+
+		// 回复登录成功（不需要锁，只发数据）
 		std::string resp = "{" +
 			JsonSetString("success", "true") + "," +
 			JsonSetInt("user_id", iUserID) + "," +
 			friendListJson + "}";
-		SendToClient(m_currentSocket, MsgType::LOGIN_RESP, resp);
-		
-		// 4. 广播 STATUS_ONLINE 给其他在线用户
+		SendToClient(pSocket, MsgType::LOGIN_RESP, resp);
+
+		// 广播上线给其他用户（锁外发送，不阻塞其他线程）
 		std::string onlineMsg = "{" +
 			JsonSetInt("user_id", iUserID) + "," +
 			JsonSetString("username", username) + "}";
-		for (auto& it : m_userIdToSocket) {
-			if (it.first != iUserID) {
-				SendToClient(it.second, MsgType::STATUS_ONLINE, onlineMsg);
+		for (auto& it : onlineUsers) {
+			SendToClient(it.second, MsgType::STATUS_ONLINE, onlineMsg);
+		}
+
+		PostUIUpdate(UIUpdateType::LOG,
+			CString(_T("[登录] ")) + CString(username.c_str())
+			+ _T(" (ID=") + CString(std::to_string(iUserID).c_str()) + _T(")"));
+		});
+
+	// ========================================================================
+	  // LOGOUT
+	  // ========================================================================
+	m_dispatcher.on(MsgType::LOGOUT, [this](const std::string& json) {
+		CConnectSocket* pSocket = g_pCurrentSocket;
+		if (!pSocket) return;
+
+		int userId = -1;
+		std::string username;
+		std::vector<CConnectSocket*> targets;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			auto it = m_socketToUserId.find(pSocket);
+			if (it == m_socketToUserId.end()) return;
+
+			userId = it->second;
+			username = m_userIdToName[userId];
+			m_userIdToSocket.erase(userId);
+			m_socketToUserId.erase(pSocket);
+			m_userIdToName.erase(userId);
+
+			for (auto& pair : m_userIdToSocket) {
+				targets.push_back(pair.second);
 			}
 		}
 
-		UpdateLog(_T("[登录] ") + CString(username.c_str()) +
-			_T(" (ID=") + CString(std::to_string(iUserID).c_str()) + _T(")"));
+		PostUIUpdate(UIUpdateType::LOGOUT, _T(""), userId, username, "");
 
-		});
-
-	m_dispatcher.on(MsgType::LOGOUT, [this](const std::string& json) {
-		// TODO: 移除用户，通知其他用户 STATUS_OFFLINE
-		if (!m_currentSocket) return;
-		auto it = m_socketToUserId.find(m_currentSocket);
-		if (it == m_socketToUserId.end()) return;
-
-		int userId = it->second;
-		std::string username = m_userIdToName[userId];
-
-		// 广播下线通知
 		std::string offlineMsg = "{" +
 			JsonSetInt("user_id", userId) + "," +
 			JsonSetString("username", username) + "}";
-
-		for (auto& it : m_userIdToSocket) {
-			if (it.first != userId) {
-				SendToClient(it.second, MsgType::STATUS_OFFLINE, offlineMsg);
-			}
+		for (auto* target : targets) {
+			SendToClient(target, MsgType::STATUS_OFFLINE, offlineMsg);
 		}
-		// 从在线列表中移除
-		m_userIdToSocket.erase(userId);
-		m_socketToUserId.erase(m_currentSocket);
-		m_userIdToName.erase(userId);
-		OnUserLogout(userId);
-
 		});
 
 	m_dispatcher.on(MsgType::TEXT, [this](const std::string& json) {
@@ -216,34 +243,55 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 
 	m_dispatcher.on(MsgType::FRIEND_ADD, [this](const std::string& json) {
 		// TODO: 添加好友关系（DB），通知双方
+		CConnectSocket* pSocket = g_pCurrentSocket;
+		if (!pSocket) return;
+
+		// 加锁检查用户和好友关系（DB 调用 + map 访问）
 		int senderId = JsonGetInt(json, "user_id");
 		std::string reciverUsername = JsonGetString(json, "friend_username");
-		int reciverId = m_dbWrapper.iGetUserId(reciverUsername);
+		int reciverId = -1;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			reciverId = m_dbWrapper.iGetUserId(reciverUsername);
+		}
 		if (reciverId == -1) {
 			std::string resp = JsonMakeObject({
 				JsonSetString("success","false"),
 				JsonSetString("reason","用户不存在")
 				});
-			SendToClient(m_currentSocket, MsgType::FRIEND_ADD_RESP, resp);
+			SendToClient(pSocket, MsgType::FRIEND_ADD_RESP, resp);
 			return;
 		}
 
 		// 检查是否已经是好友
-		if (m_dbWrapper.bIsFriend(senderId, reciverId)) {
+		bool bIsFriend = false;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			bIsFriend = m_dbWrapper.bIsFriend(senderId, reciverId);
+		}
+		if (bIsFriend) {
 			std::string resp = JsonMakeObject({
 				JsonSetString("success","false"),
 				JsonSetString("reason","已经是好友了")
 				});
-			SendToClient(m_currentSocket, MsgType::FRIEND_ADD_RESP, resp);
+			SendToClient(pSocket, MsgType::FRIEND_ADD_RESP, resp);
 			return;
 		}
 
 		// 通知接收方
-		if (m_userIdToSocket.count(reciverId) == 1) {
+		std::string senderName;
+		CConnectSocket* pReciverSocket = nullptr;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			senderName = m_userIdToName[senderId];
+			auto it = m_userIdToSocket.find(reciverId);
+			pReciverSocket = it != m_userIdToSocket.end() ? it->second : nullptr;
+		}
+		if (pReciverSocket) {
 			std::string notify = "{" +
 				JsonSetInt("user_id", senderId) + "," +
-				JsonSetString("username", m_userIdToName[senderId].c_str()) + "}";
-			SendToClient(m_userIdToSocket[reciverId], MsgType::FRIEND_ADD, notify);
+				JsonSetString("username", senderName) + "}";
+			SendToClient(pReciverSocket, MsgType::FRIEND_ADD, notify);
 		}
 		else
 		{
@@ -251,92 +299,130 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 			std::string offlineMsg = "{" +
 				JsonSetString("type", "friend_add") + "," +
 				JsonSetInt("user_id", senderId) + "," +
-				JsonSetString("username", m_userIdToName[senderId].c_str()) + "}";
+				JsonSetString("username", senderName) + "}";
 
-			m_dbWrapper.bSaveOfflineMessage(senderId, reciverId, offlineMsg);
+			{
+				CSingleLock lock(&m_csData, TRUE);
+				m_dbWrapper.bSaveOfflineMessage(senderId, reciverId, offlineMsg);
+			}
 		}
 
 		std::string resp = JsonMakeObject({
 			JsonSetString("success","waiting")
 			});
-		SendToClient(m_currentSocket, MsgType::FRIEND_ADD_RESP, resp);
+		SendToClient(pSocket, MsgType::FRIEND_ADD_RESP, resp);
 		});
 
 	m_dispatcher.on(MsgType::FRIEND_ACCEPT, [this](const std::string& json) {
 		// TODO: 接受好友请求，添加好友关系（DB），通知双方
+		CConnectSocket* pSocket = g_pCurrentSocket;
+		if (!pSocket) return;
 		int accepterId = JsonGetInt(json, "user_id");
 		int requesterId = JsonGetInt(json, "request_user_id");
-
-		if (m_dbWrapper.bAddFriend(requesterId, accepterId)) {
+		bool bAddSuccess = false;
+		std::string strAccepterName = "";
+		std::string strRequesterName = "";
+		CConnectSocket* pRequesterSocket = nullptr;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			if (!m_dbWrapper.bIsFriend(requesterId, accepterId)) {
+				bAddSuccess = m_dbWrapper.bAddFriend(requesterId, accepterId);
+				auto it = m_userIdToSocket.find(requesterId);
+				pRequesterSocket = it != m_userIdToSocket.end() ? it->second : nullptr;
+				strRequesterName = m_userIdToName[requesterId];
+				strAccepterName = m_userIdToName[accepterId];
+			}
+		}
+		if (bAddSuccess) {
+			std::string requesterOnline = pRequesterSocket ? "true" : "false";
+			std::string notify = JsonMakeObject({
+				JsonSetString("success", "true"),
+				JsonSetInt("friend_id", accepterId),
+				JsonSetString("friend_username", strAccepterName),
+				JsonSetString("online", "true")
+				});
 			// 发送方在线则通知，否则不通知，上线自动会获取
-			std::string requesterOnline = "false";
-			if (m_userIdToSocket.count(requesterId) > 0) {
-				requesterOnline = "true";
-				std::string notify = JsonMakeObject({
-					JsonSetString("success", "true"),
-					JsonSetInt("friend_id", accepterId),
-					JsonSetString("friend_username", m_userIdToName[accepterId]),
-					JsonSetString("online", "true")
-					});
-				SendToClient(m_userIdToSocket[requesterId], MsgType::FRIEND_ADD_RESP, notify);
+			if (pRequesterSocket) {
+				SendToClient(pRequesterSocket, MsgType::FRIEND_ADD_RESP, notify);
 			}
 			// 接收方此时一定在线
 			std::string resp = JsonMakeObject({
 				JsonSetString("success","true"),
 				JsonSetInt("friend_id", requesterId),
-				JsonSetString("friend_username", m_userIdToName[requesterId].c_str()),
+				JsonSetString("friend_username", strRequesterName),
 				JsonSetString("online",requesterOnline)
 				});
-			SendToClient(m_currentSocket, MsgType::FRIEND_ADD_RESP, resp);
+			SendToClient(pSocket, MsgType::FRIEND_ADD_RESP, resp);
 		}
 		else {
 			std::string resp = JsonMakeObject({
-				JsonSetString("success", "false"),
-				JsonSetString("reason", "添加好友失败，请重试")
+			JsonSetString("success", "false")
 				});
-			SendToClient(m_currentSocket, MsgType::FRIEND_ADD_RESP, resp);
+			SendToClient(pSocket, MsgType::FRIEND_ADD_RESP, resp);
 		}
+
 		});
-	
+
 	m_dispatcher.on(MsgType::FRIEND_REJECT, [this](const std::string& json) {
 		// TODO: 拒绝好友请求，通知请求方
+		CConnectSocket* pSocket = g_pCurrentSocket;
+		if (!pSocket) return;
 		int rejecterId = JsonGetInt(json, "user_id");
 		int requesterId = JsonGetInt(json, "request_user_id");
-		std::string rejecterName = m_userIdToName[rejecterId];
+		std::string rejecterName = "";
+		CConnectSocket* pRequesterSocket = nullptr;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			rejecterName = m_userIdToName[rejecterId];
+			auto it = m_userIdToSocket.find(requesterId);
+			pRequesterSocket = it != m_userIdToSocket.end() ? it->second : nullptr;
+		}
 
-		if (m_userIdToSocket.count(requesterId) > 0)
+		if (pRequesterSocket)
 		{
 			std::string resp = JsonMakeObject({
-				JsonSetString("username", rejecterName.c_str()),
+				JsonSetString("username", rejecterName),
 				JsonSetString("success","false"),
 				});
-			SendToClient(m_userIdToSocket[requesterId], MsgType::FRIEND_ADD_RESP, resp);
+			SendToClient(pRequesterSocket, MsgType::FRIEND_ADD_RESP, resp);
 			return;
 		}
 
 		std::string resp = JsonMakeObject({
 			JsonSetString("type", "friend_add_resp"),
-			JsonSetString("username", rejecterName.c_str()),
+			JsonSetString("username", rejecterName),
 			JsonSetString("success","false"),
 			});
 
-		m_dbWrapper.bSaveOfflineMessage(rejecterId, requesterId, resp);
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			m_dbWrapper.bSaveOfflineMessage(rejecterId, requesterId, resp);
+		}
 
 		});
 
 	m_dispatcher.on(MsgType::FRIEND_DEL, [this](const std::string& json) {
 		int userId = JsonGetInt(json, "user_id");
 		int friendId = JsonGetInt(json, "friend_id");
-		m_dbWrapper.bRemoveFriend(userId, friendId);
+
+		CConnectSocket* pFriendSocket = nullptr;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			m_dbWrapper.bRemoveFriend(userId, friendId);
+			auto it = m_userIdToSocket.find(friendId);
+			pFriendSocket = (it != m_userIdToSocket.end()) ? it->second : nullptr;
+		}
+
 
 		// 通知被删好友更新列表
-		if (m_userIdToSocket.count(friendId) > 0) {
+		if (pFriendSocket) {
 			std::string notify = JsonMakeObject({
 					JsonSetString("type", "friend_removed"),
 					JsonSetInt("user_id", userId)
 				});
-			SendToClient(m_userIdToSocket[friendId], MsgType::FRIEND_DEL, notify);
+			SendToClient(pFriendSocket, MsgType::FRIEND_DEL, notify);
 		}
+
 		});
 
 	m_dispatcher.on(MsgType::FILE_REQUEST, [this](const std::string& json) {
@@ -413,7 +499,6 @@ HCURSOR CNetworkServerDlg::OnQueryDragIcon() {
 }
 
 void CNetworkServerDlg::OnStnClickedStaticPort() {}
-void CNetworkServerDlg::OnEnChangeEditPort() {}
 
 // ============================================================================
 // 按钮事件
@@ -428,89 +513,64 @@ void CNetworkServerDlg::OnBnClickedButtonStart() {
 		return;
 	}
 
-	if (!m_listenSocket.Create(port)) {
-		AfxMessageBox(_T("创建监听套接字失败"));
+	m_bRunning = TRUE;
+	m_listenSocket.m_pDlg = this;
+
+	if (!m_listenSocket.Start(port)) {
+		AfxMessageBox(_T("启动监听失败"));
+		m_bRunning = FALSE;
 		return;
 	}
 
-	m_listenSocket.Listen();
 	UpdateStatus(_T("正在监听..."));
 	GetDlgItem(IDC_BUTTON_START)->EnableWindow(FALSE);
 	GetDlgItem(IDC_EDIT_PORT)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
 	UpdateLog(_T("[启动] 开始监听端口 ") + strPort);
 }
 
 void CNetworkServerDlg::OnBnClickedButtonStop() {
-	for (CConnectSocket* p : m_connectSockets) {
-		p->Close();
-		delete p;
-	}
-	m_connectSockets.clear();
-	m_listenSocket.Close();
-	m_userIdToSocket.clear();
-	m_socketToUserId.clear();
-	m_userIdToName.clear();
-	// 清空在线用户
-	m_userList.DeleteAllItems();
+	InterlockedExchange(&m_bRunning, FALSE);
 
+	// 阶段 1：停止接受新连接
+	m_listenSocket.Stop();
+
+	// 阶段 2：复制列表 → 逐个关闭（不持锁调用 Stop，避免死锁）
+	std::vector<CConnectSocket*> sockets;
+	{
+		CSingleLock lock(&m_csData, TRUE);
+		sockets = m_connectSockets;
+	}
+	for (auto* s : sockets) {
+		s->Stop();  // 阻塞等线程退出；线程自 delete this
+		// s 现在是悬空指针，不能再访问！
+	}
+
+	// 阶段 3：清空所有 maps
+	{
+		CSingleLock lock(&m_csData, TRUE);
+		m_connectSockets.clear();
+		m_userIdToSocket.clear();
+		m_socketToUserId.clear();
+		m_userIdToName.clear();
+	}
+
+	m_userList.DeleteAllItems();
 	UpdateStatus(_T("空闲"));
 	GetDlgItem(IDC_BUTTON_START)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
-	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
 	GetDlgItem(IDC_EDIT_PORT)->EnableWindow(TRUE);
 	UpdateLog(_T("[停止] 已停止监听"));
-}
-/*
-void CNetworkServerDlg::OnBnClickedButtonSend() {
-	CString strMessage;
-	GetDlgItemText(IDC_EDIT_MSG, strMessage);
-	if (strMessage.IsEmpty()) {
-		AfxMessageBox(_T("请输入要发送的消息"));
-		return;
-	}
-
-	CT2A asciiMsg(strMessage);
-	int nSent = m_connectSocket.Send((LPCSTR)asciiMsg,
-		static_cast<int>(strlen(asciiMsg)));
-	if (nSent == SOCKET_ERROR) {
-		AfxMessageBox(_T("发送消息失败"));
-		UpdateLog(_T("[错误] 发送消息失败"));
-		return;
-	}
-	UpdateLog(_T("[发送] ") + strMessage);
-	SetDlgItemText(IDC_EDIT_MSG, _T(""));
-}
-*/
-
-// ============================================================================
-// 网络回调
-// ============================================================================
-
-void CNetworkServerDlg::OnAccept() {
-	CConnectSocket* pSocket = new CConnectSocket();
-	pSocket->m_pDlg = this;
-
-	if (m_listenSocket.Accept(*pSocket)) {
-		m_connectSockets.push_back(pSocket);
-		UpdateLog(_T("[连接] 新客户端接入"));
-		UpdateStatus(_T("已连接"));
-		GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
-		GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(TRUE);
-	}
-	else {
-		delete pSocket;
-		UpdateLog(_T("[错误] Accept 失败"));
-	}
 }
 
 // ============================================================================
 // 公开方法
 // ============================================================================
 
-void CNetworkServerDlg::OnUserLogin(int userId,
+void CNetworkServerDlg::OnUserLoginUI(int userId,
 	const std::string& username,
 	const std::string& ip) {
-	
+
 
 	int idx = m_userList.InsertItem(m_userList.GetItemCount(),
 		CString(username.c_str()));
@@ -521,13 +581,11 @@ void CNetworkServerDlg::OnUserLogin(int userId,
 		_T(" (") + CString(ip.c_str()) + _T(")"));
 }
 
-void CNetworkServerDlg::OnUserLogout(int userId) {
-	auto it = m_userIdToSocket.find(userId);
-	if (it != m_userIdToSocket.end()) {
-		UpdateLog(_T("[下线] ") + CString(m_userIdToName[it->first].c_str()));
-	}
+void CNetworkServerDlg::OnUserLogoutUI(int userId, const std::string& username) {
+	// 不再读任何 map —— 用户名通过参数传入（由 PostUIUpdate 携带）
+	UpdateLog(_T("[下线] ") + CString(username.c_str()));
 
-	// 从列表控件移除
+	// 从列表控件移除（纯 UI 操作，安全）
 	int count = m_userList.GetItemCount();
 	for (int i = 0; i < count; i++) {
 		if (static_cast<int>(m_userList.GetItemData(i)) == userId) {
@@ -535,7 +593,6 @@ void CNetworkServerDlg::OnUserLogout(int userId) {
 			break;
 		}
 	}
-
 }
 
 void CNetworkServerDlg::UpdateLog(const CString& str) {
@@ -553,51 +610,122 @@ void CNetworkServerDlg::UpdateStatus(const CString& text) {
 	SetDlgItemText(IDC_STATIC_STATUS, text);
 }
 
-void CNetworkServerDlg::OnMessageReceived(CConnectSocket* pSocket, MsgType msgType, const std::string& json)
+void CNetworkServerDlg::DispatchMessage(CConnectSocket* pSocket, MsgType msgType, const std::string& json)
 {
-	m_currentSocket = pSocket;
-	UpdateLog(_T("[收到] 类型=") + 
-		CString(std::to_string(static_cast<uint32_t>(msgType)).c_str()) +
-		_T(" 内容=") + CString(json.c_str()) );
+	// 记录日志（通过 PostMessage 安全投递到 UI 线程）
+	PostUIUpdate(UIUpdateType::LOG,
+		CString(_T("[收到] 类型="))
+		+ CString(std::to_string(static_cast<uint32_t>(msgType)).c_str())
+		+ _T(" 内容=") + CString(json.c_str()));
+
+	// 分发到 handler
+	// g_pCurrentSocket 在 RecvLoop 中已设置，handler 通过它获取当前 socket
 	m_dispatcher.dispatch(msgType, json);
-	m_currentSocket = nullptr;
 }
 
-void CNetworkServerDlg::SendToClient(CConnectSocket * pSocket, MsgType msgType, const std::string & json)
+void CNetworkServerDlg::SendToClient(CConnectSocket* pSocket, MsgType msgType, const std::string& json)
 {
+	if (!pSocket) return;
 	std::vector<uint8_t> data = ProtocolEncode(msgType, json);
-	pSocket->Send(data.data(), static_cast<int>(data.size()));
+	pSocket->SendData(data.data(), static_cast<int>(data.size()));
 }
 
 void CNetworkServerDlg::OnClientDisconnected(CConnectSocket* pSocket)
 {
-	auto it = m_socketToUserId.find(pSocket);
+	// 防重复清理（Stop() 和自然断开可能同时触发）
+	{
+		CSingleLock lock(&m_csData, TRUE);
+		if (pSocket->m_bDisconnected) return;
+		pSocket->m_bDisconnected = true;
+	}
 
-	if (it != m_socketToUserId.end()) {
-		int userId = it->second;
-		std::string username = m_userIdToName[userId];
-		OnUserLogout(userId);
-		m_socketToUserId.erase(it);
-		m_userIdToSocket.erase(userId);
-		m_userIdToName.erase(userId);
+	int userId = -1;
+	std::string username;
 
+	// 第一阶段：加锁提取用户信息，从 maps 移除
+	{
+		CSingleLock lock(&m_csData, TRUE);
+		auto it = m_socketToUserId.find(pSocket);
+		if (it != m_socketToUserId.end()) {
+			userId = it->second;
+			username = m_userIdToName[userId];
+			m_socketToUserId.erase(it);
+			m_userIdToSocket.erase(userId);
+			m_userIdToName.erase(userId);
+		}
+
+		auto it2 = std::find(m_connectSockets.begin(), m_connectSockets.end(), pSocket);
+		if (it2 != m_connectSockets.end()) {
+			m_connectSockets.erase(it2);
+		}
+	}  // 锁释放
+
+	// 第二阶段：UI 更新（无需锁）
+	if (userId >= 0) {
+		PostUIUpdate(UIUpdateType::LOGOUT, _T(""), userId, username, "");
+	}
+
+	// 第三阶段：广播离线（加锁复制列表 → 解锁 → 逐个发送）
+	if (userId >= 0) {
+		std::vector<CConnectSocket*> targets;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			for (auto& pair : m_userIdToSocket) {
+				targets.push_back(pair.second);
+			}
+		}
 		std::string offlineMsg = JsonMakeObject({
 			JsonSetInt("user_id", userId),
 			JsonSetString("username", username)
 			});
-
-		for (auto& pair : m_userIdToSocket) {
-			SendToClient(pair.second, MsgType::STATUS_OFFLINE, offlineMsg);
+		for (auto* target : targets) {
+			SendToClient(target, MsgType::STATUS_OFFLINE, offlineMsg);
 		}
 	}
 
-	auto it2 = std::find(m_connectSockets.begin(), m_connectSockets.end(), pSocket);
-	if (it2 != m_connectSockets.end()) {
-		m_connectSockets.erase(it2);
-	}
-
-	pSocket->Close();
-	delete pSocket;
+	// 注意：不 delete pSocket！线程在 ThreadProc 返回前会 delete this
 }
 
+void CNetworkServerDlg::PostUIUpdate(UIUpdateType type, const CString& text, int userId, const std::string& username, const std::string& ip)
+{
+	UIUpdateData* pData = new UIUpdateData;
+	pData->type = type;
+	pData->text = text;
+	pData->userId = userId;
+	pData->username = username;
+	pData->ip = ip;
+	PostMessage(WM_USER_UPDATE_UI, static_cast<WPARAM>(type),
+		reinterpret_cast<LPARAM>(pData));
+}
+
+LRESULT CNetworkServerDlg::OnUIUpdate(WPARAM wParam, LPARAM lParam)
+{
+	UIUpdateData* pData = reinterpret_cast<UIUpdateData*>(lParam);
+	if (!pData) return 0;
+
+	switch (static_cast<UIUpdateType>(wParam)) {
+	case UIUpdateType::LOG:
+		UpdateLog(pData->text);
+		break;
+	case UIUpdateType::LOGIN:
+		OnUserLoginUI(pData->userId, pData->username, pData->ip);
+		break;
+	case UIUpdateType::LOGOUT:
+		OnUserLogoutUI(pData->userId, pData->username);
+		break;
+	case UIUpdateType::STATUS_TEXT:
+		UpdateStatus(pData->text);
+		break;
+	}
+	delete pData;
+	return 0;
+}
+
+void CNetworkServerDlg::OnDestroy()
+{
+	if (InterlockedCompareExchange(&m_bRunning, TRUE, TRUE) == TRUE) {
+		OnBnClickedButtonStop();
+	}
+	CDialogEx::OnDestroy();
+}
 

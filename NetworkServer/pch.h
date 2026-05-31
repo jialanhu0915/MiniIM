@@ -8,8 +8,8 @@
 #define PCH_H
 
 // 添加要在此处预编译的标头
+#include <winsock2.h>   // 必须在 framework.h/windows.h 之前！否则 SOCKET 未定义
 #include "framework.h"
-#include <winsock2.h>
 #include <afxmt.h>
 
 #endif //PCH_H
