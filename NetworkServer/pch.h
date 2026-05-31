@@ -9,6 +9,7 @@
 
 // 添加要在此处预编译的标头
 #include <winsock2.h>   // 必须在 framework.h/windows.h 之前！否则 SOCKET 未定义
+#include <ws2tcpip.h>   // inet_ntop, inet_pton 等现代 API
 #include "framework.h"
 #include <afxmt.h>
 

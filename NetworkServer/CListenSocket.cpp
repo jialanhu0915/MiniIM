@@ -78,7 +78,9 @@ void CListenSocket::AcceptLoop()
 		CConnectSocket* p = new CConnectSocket;
 		p->m_socket = clientSock;
 		p->m_pDlg = m_pDlg;
-		p->m_clientIP = inet_ntoa(clientAddr.sin_addr);
+		char ipStr[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &clientAddr.sin_addr, ipStr, sizeof(ipStr));
+		p->m_clientIP = ipStr;
 		p->Start();  // 创建 recv 线程
 
 		{
@@ -86,12 +88,8 @@ void CListenSocket::AcceptLoop()
 			m_pDlg->m_connectSockets.push_back(p);
 		}
 
-		m_pDlg->PostUIUpdate(UIUpdateType::LOG, _T("[连接] 新客户端接入"));
-		m_pDlg->PostUIUpdate(UIUpdateType::STATUS_TEXT, _T("已连接"));
+		m_pDlg->PostUIUpdate(UIUpdateType::LOG, _T("[Connect] New client connected"));
+		m_pDlg->PostUIUpdate(UIUpdateType::STATUS_TEXT, _T("Connected"));
 
 	}
 }
-
-
-
-

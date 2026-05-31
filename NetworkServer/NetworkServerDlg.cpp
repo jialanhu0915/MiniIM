@@ -9,7 +9,6 @@
 #include "framework.h"
 #include "NetworkServer.h"
 #include "NetworkServerDlg.h"
-#include "afxdialogex.h"
 #include "SQLiteWrapper.h"
 #include "../Common/JsonUtils.h"
 extern thread_local CConnectSocket* g_pCurrentSocket;
@@ -499,6 +498,7 @@ HCURSOR CNetworkServerDlg::OnQueryDragIcon() {
 }
 
 void CNetworkServerDlg::OnStnClickedStaticPort() {}
+void CNetworkServerDlg::OnEnChangeEditPort() {}
 
 // ============================================================================
 // 按钮事件
