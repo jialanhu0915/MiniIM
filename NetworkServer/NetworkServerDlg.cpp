@@ -90,7 +90,6 @@ BOOL CNetworkServerDlg::OnInitDialog() {
 
 	// ---- 初始状态 ----
 	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
-	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
 	SetDlgItemText(IDC_STATIC_STATUS, _T("空闲"));
 
 	// ---- 打开数据库 ----
@@ -149,25 +148,46 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 			return;
 		}
 
-		// DB 调用 + map 写入 → 加锁
-		int iUserID;
-		std::string friendListJson;
+		// DB 调用（m_csDb 自动加锁）
+		int iUserID = m_dbWrapper.iAddUser(username);
+
+		// 获取在线用户快照（锁内）
 		std::vector<std::pair<int, CConnectSocket*>> onlineUsers;
 		{
 			CSingleLock lock(&m_csData, TRUE);
-			iUserID = m_dbWrapper.iAddUser(username);
-
-			m_userIdToSocket[iUserID] = pSocket;
-			m_socketToUserId[pSocket] = iUserID;
-			m_userIdToName[iUserID] = username;
-
-			// copy 好友列表和在线用户（锁内准备数据，锁外发送）
-			friendListJson = strGetFriendListJson(iUserID);
 			for (auto& it : m_userIdToSocket) {
 				if (it.first != iUserID) {
 					onlineUsers.push_back(it);
 				}
 			}
+		}
+
+		// 查询好友列表（m_csDb 内部加锁）并构造 JSON（锁外）
+		auto friendIds = m_dbWrapper.vecGetFriends(iUserID);
+		std::string friendListJson = "\"friends\": [";
+		for (size_t i = 0; i < friendIds.size(); ++i) {
+			int fid = friendIds[i].first;
+			std::string fname = friendIds[i].second;
+			bool online = false;
+			{
+				CSingleLock lock(&m_csData, TRUE);
+				online = m_userIdToSocket.count(fid) > 0;
+			}
+			friendListJson += JsonMakeObject({
+				JsonSetInt("user_id", fid),
+				JsonSetString("username", fname),
+				JsonSetString("online", online ? "true" : "false")
+			});
+			if (i != friendIds.size() - 1) friendListJson += ",";
+		}
+		friendListJson += "]";
+
+		// map 写入（锁内）
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			m_userIdToSocket[iUserID] = pSocket;
+			m_socketToUserId[pSocket] = iUserID;
+			m_userIdToName[iUserID] = username;
 		}
 
 		// UI 更新
@@ -230,29 +250,81 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::TEXT, [this](const std::string& json) {
-		// TODO: 解析 sender_id, receiver_id, content
-		// 1. 存 DB
-		// 2. 如果 receiver 在线 → 转发
-		// 3. 如果 receiver 离线 → 存为离线消息
+		int senderId = JsonGetInt(json, "sender_id");
+		int receiverId = JsonGetInt(json, "receiver_id");
+		std::string content = JsonGetString(json, "content");
+
+		// 保存到数据库（m_csDb 自动加锁）
+		m_dbWrapper.bSaveMessage(senderId, receiverId, content);
+
+		// 查找接收方 socket（锁内）
+		CConnectSocket* pReceiver = nullptr;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			auto it = m_userIdToSocket.find(receiverId);
+			if (it != m_userIdToSocket.end()) pReceiver = it->second;
+		}
+
+		if (pReceiver) {
+			// 在线：直接转发
+			std::string forward = JsonMakeObject({
+				JsonSetInt("sender_id", senderId),
+				JsonSetString("content", content)
+				});
+			SendToClient(pReceiver, MsgType::TEXT, forward);
+		}
+		else {
+			// 离线：存离线消息（m_csDb 自动加锁）
+			std::string offlineMsg = JsonMakeObject({
+				JsonSetString("type", "text"),
+				JsonSetInt("sender_id", senderId),
+				JsonSetString("content", content)
+				});
+			m_dbWrapper.bSaveOfflineMessage(senderId, receiverId, offlineMsg);
+		}
+
+		PostUIUpdate(UIUpdateType::LOG,
+			CString(_T("[消息] user=")) + CString(std::to_string(senderId).c_str())
+			+ _T(" → user=") + CString(std::to_string(receiverId).c_str()));
 		});
 
 	m_dispatcher.on(MsgType::GROUP_TEXT, [this](const std::string& json) {
-		// TODO: 广播给所有在线用户
+		int senderId = JsonGetInt(json, "sender_id");
+		std::string content = JsonGetString(json, "content");
+
+		// 广播给所有在线用户（除发送者外）
+		std::vector<CConnectSocket*> targets;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			for (auto& pair : m_userIdToSocket) {
+				if (pair.first != senderId) {
+					targets.push_back(pair.second);
+				}
+			}
+		}
+
+		std::string broadcast = JsonMakeObject({
+			JsonSetInt("sender_id", senderId),
+			JsonSetString("content", content)
+			});
+		for (auto* target : targets) {
+			SendToClient(target, MsgType::GROUP_TEXT, broadcast);
+		}
+
+		PostUIUpdate(UIUpdateType::LOG,
+			CString(_T("[群聊] user=")) + CString(std::to_string(senderId).c_str())
+			+ _T(" → 全体"));
 		});
 
 	m_dispatcher.on(MsgType::FRIEND_ADD, [this](const std::string& json) {
-		// TODO: 添加好友关系（DB），通知双方
 		CConnectSocket* pSocket = g_pCurrentSocket;
 		if (!pSocket) return;
 
-		// 加锁检查用户和好友关系（DB 调用 + map 访问）
 		int senderId = JsonGetInt(json, "user_id");
 		std::string reciverUsername = JsonGetString(json, "friend_username");
-		int reciverId = -1;
-		{
-			CSingleLock lock(&m_csData, TRUE);
-			reciverId = m_dbWrapper.iGetUserId(reciverUsername);
-		}
+
+		// DB 查询用户 ID（m_csDb 自动加锁）
+		int reciverId = m_dbWrapper.iGetUserId(reciverUsername);
 		if (reciverId == -1) {
 			std::string resp = JsonMakeObject({
 				JsonSetString("success","false"),
@@ -262,12 +334,8 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 			return;
 		}
 
-		// 检查是否已经是好友
-		bool bIsFriend = false;
-		{
-			CSingleLock lock(&m_csData, TRUE);
-			bIsFriend = m_dbWrapper.bIsFriend(senderId, reciverId);
-		}
+		// 检查是否已经是好友（m_csDb 自动加锁）
+		bool bIsFriend = m_dbWrapper.bIsFriend(senderId, reciverId);
 		if (bIsFriend) {
 			std::string resp = JsonMakeObject({
 				JsonSetString("success","false"),
@@ -300,10 +368,7 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 				JsonSetInt("user_id", senderId) + "," +
 				JsonSetString("username", senderName) + "}";
 
-			{
-				CSingleLock lock(&m_csData, TRUE);
-				m_dbWrapper.bSaveOfflineMessage(senderId, reciverId, offlineMsg);
-			}
+			m_dbWrapper.bSaveOfflineMessage(senderId, reciverId, offlineMsg);
 		}
 
 		std::string resp = JsonMakeObject({
@@ -313,24 +378,28 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::FRIEND_ACCEPT, [this](const std::string& json) {
-		// TODO: 接受好友请求，添加好友关系（DB），通知双方
 		CConnectSocket* pSocket = g_pCurrentSocket;
 		if (!pSocket) return;
 		int accepterId = JsonGetInt(json, "user_id");
 		int requesterId = JsonGetInt(json, "request_user_id");
+
+		// DB 操作（m_csDb 自动加锁），内存 map 单独加锁（避免嵌套持锁）
 		bool bAddSuccess = false;
-		std::string strAccepterName = "";
-		std::string strRequesterName = "";
+		std::string strAccepterName, strRequesterName;
 		CConnectSocket* pRequesterSocket = nullptr;
+
+		// 1. DB 查询（m_csDb）
+		if (!m_dbWrapper.bIsFriend(requesterId, accepterId)) {
+			bAddSuccess = m_dbWrapper.bAddFriend(requesterId, accepterId);
+		}
+
+		// 2. 查 map（m_csData，不在 DB 锁内）
 		{
 			CSingleLock lock(&m_csData, TRUE);
-			if (!m_dbWrapper.bIsFriend(requesterId, accepterId)) {
-				bAddSuccess = m_dbWrapper.bAddFriend(requesterId, accepterId);
-				auto it = m_userIdToSocket.find(requesterId);
-				pRequesterSocket = it != m_userIdToSocket.end() ? it->second : nullptr;
-				strRequesterName = m_userIdToName[requesterId];
-				strAccepterName = m_userIdToName[accepterId];
-			}
+			auto it = m_userIdToSocket.find(requesterId);
+			pRequesterSocket = it != m_userIdToSocket.end() ? it->second : nullptr;
+			strRequesterName = m_userIdToName[requesterId];
+			strAccepterName = m_userIdToName[accepterId];
 		}
 		if (bAddSuccess) {
 			std::string requesterOnline = pRequesterSocket ? "true" : "false";
@@ -363,7 +432,6 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::FRIEND_REJECT, [this](const std::string& json) {
-		// TODO: 拒绝好友请求，通知请求方
 		CConnectSocket* pSocket = g_pCurrentSocket;
 		if (!pSocket) return;
 		int rejecterId = JsonGetInt(json, "user_id");
@@ -393,10 +461,7 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 			JsonSetString("success","false"),
 			});
 
-		{
-			CSingleLock lock(&m_csData, TRUE);
 			m_dbWrapper.bSaveOfflineMessage(rejecterId, requesterId, resp);
-		}
 
 		});
 
@@ -404,10 +469,12 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		int userId = JsonGetInt(json, "user_id");
 		int friendId = JsonGetInt(json, "friend_id");
 
+		// DB 删除好友（m_csDb 自动加锁），查 socket 单独加锁
+		m_dbWrapper.bRemoveFriend(userId, friendId);
+
 		CConnectSocket* pFriendSocket = nullptr;
 		{
 			CSingleLock lock(&m_csData, TRUE);
-			m_dbWrapper.bRemoveFriend(userId, friendId);
 			auto it = m_userIdToSocket.find(friendId);
 			pFriendSocket = (it != m_userIdToSocket.end()) ? it->second : nullptr;
 		}
@@ -433,14 +500,40 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::HISTORY, [this](const std::string& json) {
-		// TODO: 从 DB 查询聊天记录，返回给请求方
+		CConnectSocket* pSocket = g_pCurrentSocket;
+		if (!pSocket) return;
+
+		int userId = JsonGetInt(json, "user_id");
+		int otherUserId = JsonGetInt(json, "other_user_id");
+		int limit = JsonGetInt(json, "limit");
+		if (limit <= 0 || limit > 100) limit = 20;
+
+		std::vector<std::string> records;
+		m_dbWrapper.bGetMessages(userId, otherUserId, limit, records);
+
+		// 构造 JSON 数组返回
+		std::string resp = "{\"messages\":[";
+		for (size_t i = 0; i < records.size(); ++i) {
+			resp += "\"" + records[i] + "\"";
+			if (i != records.size() - 1) resp += ",";
+		}
+		resp += "]}";
+		SendToClient(pSocket, MsgType::HISTORY, resp);
 		});
 
 	m_dispatcher.on(MsgType::OFFLINE_READ, [this](const std::string& json) {
-		// TODO: 标记离线消息已读
+		CConnectSocket* pSocket = g_pCurrentSocket;
+		if (!pSocket) return;
+
+		int userId = JsonGetInt(json, "user_id");
+		auto arr = JsonGetArray(json, "msg_ids");
+		for (const auto& item : arr) {
+			int msgId = std::stoi(item);
+			m_dbWrapper.bDeleteOfflineMessage(msgId);
+		}
 		});
 }
-
+/*
 std::string CNetworkServerDlg::strGetFriendListJson(int iUserId)
 {
 	auto friendIds = m_dbWrapper.vecGetFriends(iUserId);
@@ -449,10 +542,11 @@ std::string CNetworkServerDlg::strGetFriendListJson(int iUserId)
 		int fid = friendIds[i].first;
 		std::string fname = friendIds[i].second;
 		bool online = m_userIdToSocket.count(fid) > 0;
-		friendListJson += "{" +
-			JsonSetInt("user_id", fid) + "," +
-			JsonSetString("username", fname) + "," +
-			JsonSetString("online", online ? "true" : "false") + "}";
+		friendListJson += JsonMakeObject({
+			JsonSetInt("user_id", fid),
+			JsonSetString("username", fname),
+			JsonSetString("online", online ? "true" : "false")
+		});
 		if (i != friendIds.size() - 1) {
 			friendListJson += ",";
 		}
@@ -460,7 +554,7 @@ std::string CNetworkServerDlg::strGetFriendListJson(int iUserId)
 	friendListJson += "]";
 	return friendListJson;
 }
-
+*/
 // ============================================================================
 // 系统消息
 // ============================================================================

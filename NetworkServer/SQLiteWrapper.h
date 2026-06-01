@@ -217,5 +217,39 @@ public:
     bool bDeleteOfflineMessage(int msgId);
 
 private:
-    sqlite3* m_db;  ///< SQLite数据库连接句柄
+    sqlite3*         m_db;    ///< SQLite数据库连接句柄
+    CCriticalSection m_csDb;  ///< 保护 m_db 的互斥锁
+
+    // ---- 不加锁的内部实现，调用方必须已持有 m_csDb ----
+
+    bool bOpenDbImpl(const char* dbPath);
+    bool bCloseDbImpl();
+
+    int         iAddUserImpl(const std::string& username);
+    int         iGetUserIdImpl(const std::string& username);
+    std::string strGetUsernameImpl(int userId);
+    bool        bUserExistsByNameImpl(const std::string& username);
+    bool        bUserExistsByIDImpl(int userId);
+
+    bool bSaveMessageImpl(int senderId, int receiverId, const std::string& content);
+    bool bGetMessagesImpl(int userId, int otherUserId, int limit,
+                           std::vector<std::string>& results);
+    bool bMarkMessagesAsReadImpl(int senderId, int receiverId);
+    int  iGetUnreadCountImpl(int userId, int otherUserId);
+
+    bool bAddFriendImpl(int userId, int friendId);
+    bool bRemoveFriendImpl(int userId, int friendId);
+    bool bIsFriendImpl(int userId, int friendId);
+    std::vector<std::pair<int, std::string>> vecGetFriendsImpl(int userId);
+
+    int  iSaveFileRecordImpl(int senderId, int receiverId,
+                              const std::string& filename, long filesize,
+                              const std::string& filepath);
+    bool bUpdateFileDownloadedImpl(int fileId);
+
+    bool bSaveOfflineMessageImpl(int senderId, int receiverId,
+                                  const std::string& content);
+    bool bGetOfflineMessagesImpl(int userId, std::vector<std::string>& results);
+    int  iGetOfflineMessageCountImpl(int userId);
+    bool bDeleteOfflineMessageImpl(int msgId);
 };

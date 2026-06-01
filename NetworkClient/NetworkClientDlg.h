@@ -117,6 +117,7 @@ public:
     // ================================================================
     int         m_userId    = -1;
     std::string m_username;
+    bool        m_bConnecting = false;  // 正在连接中（防止重复点连接）
 
     // ---- RecvBuffer & Dispatcher（网络层在 OnReceive 中使用） ----
     RecvBuffer          m_recvBuf;
@@ -129,6 +130,7 @@ public:
     void OnReceive();
     void OnClose();
     void OnConnect();
+    void OnConnectError(int nErrorCode);  // 连接失败时调用
     void UpdateLog(const CString& str);
 
 
@@ -146,8 +148,7 @@ private:
     CButton  m_btnAddFriend;     // 添加好友按钮
     CButton  m_btnRemoveFriend;  // 删除好友按钮
 
-    // ---- 聊天区 ----
-    CEdit   m_chatDisplay;       // 聊天记录显示（多行只读）
+    // ---- 聊天区（复用 IDC_EDIT_LOG，m_chatDisplay 字段已删除）----
 
     // ---- 文件传输 ----
     CButton m_btnSendFile;       // 发送文件按钮

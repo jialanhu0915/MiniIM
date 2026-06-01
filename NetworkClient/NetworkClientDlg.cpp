@@ -13,6 +13,8 @@
 #include "../Common/JsonUtils.h"
 #include "CAddFriendDlg.h"
 
+#include <ctime>
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -155,11 +157,38 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::TEXT, [this](const std::string& json) {
-		// TODO: 解析 JSON，调用 OnMessageReceived()
+		int senderId = JsonGetInt(json, "sender_id");
+		std::string content = JsonGetString(json, "content");
+		std::string timestamp = JsonGetString(json, "timestamp");
+
+		// 1) 优先从好友表里查
+		// 2) 查不到就用 JSON 自带的 username 字段
+		// 3) 都没有就显示 ID
+		std::string senderName = JsonGetString(json, "username");
+		auto it = m_friendMap.find(senderId);
+		if (it != m_friendMap.end()) {
+			senderName = it->second.username;
+		} else if (senderName.empty()) {
+			senderName = "用户" + std::to_string(senderId);
+		}
+
+		OnMessageReceived(senderName, content, timestamp);
 		});
 
 	m_dispatcher.on(MsgType::GROUP_TEXT, [this](const std::string& json) {
-		// TODO: 解析 JSON，调用 OnMessageReceived()
+		int senderId = JsonGetInt(json, "sender_id");
+		std::string content = JsonGetString(json, "content");
+		std::string timestamp = JsonGetString(json, "timestamp");
+
+		std::string senderName = JsonGetString(json, "username");
+		auto it = m_friendMap.find(senderId);
+		if (it != m_friendMap.end()) {
+			senderName = it->second.username;
+		} else if (senderName.empty()) {
+			senderName = "用户" + std::to_string(senderId);
+		}
+
+		OnMessageReceived(senderName, content, timestamp);
 		});
 
 	m_dispatcher.on(MsgType::STATUS_ONLINE, [this](const std::string& json) {
@@ -199,7 +228,28 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::HISTORY, [this](const std::string& json) {
-		// TODO: 解析 JSON，在聊天区加载历史消息
+		auto arr = JsonGetArray(json, "messages");
+		for (const auto& item : arr) {
+			std::string content = JsonGetString(item, "content");
+			AppendChatMessage(CString(content.c_str()));
+		}
+		});
+
+	m_dispatcher.on(MsgType::OFFLINE_MSGS, [this](const std::string& json) {
+		auto arr = JsonGetArray(json, "messages");
+		if (arr.empty()) return;
+		AppendChatMessage(_T("[系统] 收到 ") +
+			CString(std::to_string(arr.size()).c_str()) +
+			_T(" 条离线消息"));
+		for (const auto& item : arr) {
+			std::string content = JsonGetString(item, "content");
+			AppendChatMessage(CString(CA2W(content.c_str(), CP_UTF8)));
+		}
+		});
+
+	m_dispatcher.on(MsgType::FRIEND_DEL, [this](const std::string& json) {
+		int friendId = JsonGetInt(json, "friend_id");
+		RemoveFriendFromList(friendId);
 		});
 
 	m_dispatcher.on(MsgType::FRIEND_ADD_RESP, [this](const std::string& json) {
@@ -291,6 +341,8 @@ HCURSOR CNetworkClientDlg::OnQueryDragIcon() {
 // ============================================================================
 
 void CNetworkClientDlg::OnBnClickedButtonConnect() {
+	if (m_bConnecting) return;  // 正在连接中，忽略重复点击
+
 	CString strIP, strPort, strUser;
 	GetDlgItemText(IDC_IPADDRESS, strIP);
 	GetDlgItemText(IDC_EDIT_PORT, strPort);
@@ -308,10 +360,6 @@ void CNetworkClientDlg::OnBnClickedButtonConnect() {
 
 	m_username = CT2A(strUser);
 
-	// TODO: 你的网络层代码
-	// 1. 连接服务器
-	// 2. 发送 LOGIN 消息：{"username":"..."}
-	//
 	m_connectSocket.Close();
 	if (!m_connectSocket.Create()) {
 		AfxMessageBox(_T("创建 socket 失败"));
@@ -319,6 +367,7 @@ void CNetworkClientDlg::OnBnClickedButtonConnect() {
 	}
 	m_connectSocket.Connect(strIP, port);
 
+	m_bConnecting = true;
 	GetDlgItem(IDC_BUTTON_CONNECT)->EnableWindow(FALSE);
 	UpdateStatus(_T("正在连接..."));
 	UpdateLog(_T("[连接] 正在连接 ") + strIP + _T(":") + strPort);
@@ -333,6 +382,7 @@ void CNetworkClientDlg::OnBnClickedButtonDisconnect() {
 		m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
 	}
 
+	m_bConnecting = false;
 	m_connectSocket.Close();
 	m_userId = -1;
 	m_friendList.ResetContent();
@@ -356,20 +406,35 @@ void CNetworkClientDlg::OnBnClickedButtonSend() {
 		return;
 	}
 
-	// TODO: 你的网络层代码
-	// 根据当前选中的好友构造 TEXT 或 GROUP_TEXT 消息并发送
-	//
-	// if (m_selectedFriendId > 0) {
-	//     // 单聊
-	//     auto data = ProtocolEncode(MsgType::TEXT,
-	//         FormatJson("sender_id", m_userId, "receiver_id", m_selectedFriendId, ...));
-	// } else {
-	//     // 群聊（选中"全体"时）
-	//     auto data = ProtocolEncode(MsgType::GROUP_TEXT, ...);
-	// }
+	// 未选中好友时提示（群聊 receiver_id=0 视作有效）
+	if (m_selectedFriendId < 0) {
+		AfxMessageBox(_T("请先选择一个好友！"));
+		return;
+	}
+
+	MsgType msgType = (m_selectedFriendId == 0) ? MsgType::GROUP_TEXT : MsgType::TEXT;
+
+	std::string content = CT2A(strMsg);
+
+	// 客户端时间戳（秒）
+	std::time_t now = std::time(nullptr);
+	struct tm timeInfo;
+	localtime_s(&timeInfo, &now);
+	char timeBuf[32];
+	std::strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &timeInfo);
+
+	std::string json = JsonMakeObject({
+		JsonSetInt("sender_id", m_userId),
+		JsonSetInt("receiver_id", m_selectedFriendId),
+		JsonSetString("content", content),
+		JsonSetString("timestamp", timeBuf)
+		});
+
+	auto data = ProtocolEncode(msgType, json);
+	m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
 
 	// 本地显示自己发的消息
-	AppendChatMessage(_T("[我] ") + strMsg);
+	AppendChatMessage(_T("[") + CString(timeBuf) + _T("] [我]: ") + strMsg);
 	SetDlgItemText(IDC_EDIT_MSG, _T(""));
 }
 
@@ -407,6 +472,12 @@ void CNetworkClientDlg::OnBnClickedButtonAddFriend() {
 	strName.Trim();
 	if (strName.IsEmpty()) return;
 
+	// 不允许添加自己
+	if (strName == CString(m_username.c_str())) {
+		AfxMessageBox(_T("不能添加自己为好友！"));
+		return;
+	}
+
 	std::string friendName = CT2A(strName);
 	std::string json = JsonMakeObject({
 			JsonSetInt("user_id", m_userId),
@@ -419,22 +490,32 @@ void CNetworkClientDlg::OnBnClickedButtonAddFriend() {
 }
 
 void CNetworkClientDlg::OnBnClickedButtonRemoveFriend() {
-	if (m_selectedFriendId < 0) {
+	if (m_selectedFriendId <= 0) {
 		AfxMessageBox(_T("请先选择一个好友！"));
 		return;
 	}
 
+	int removedId = m_selectedFriendId;
 	std::string json = JsonMakeObject({
 		JsonSetInt("user_id", m_userId),
-		JsonSetInt("friend_id", m_selectedFriendId)
+		JsonSetInt("friend_id", removedId)
 	});
 	auto data = ProtocolEncode(MsgType::FRIEND_DEL, json);
 	m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
 
+	// 本地立即移除
+	RemoveFriendFromList(removedId);
 	UpdateLog(_T("[好友] 已发送删除好友请求"));
 }
 
 void CNetworkClientDlg::OnCancel() {
+	// 关闭前通知服务端，避免服务端误判异常断开
+	if (m_userId > 0) {
+		std::string json = JsonMakeObject({ JsonSetInt("user_id", m_userId) });
+		auto data = ProtocolEncode(MsgType::LOGOUT, json);
+		m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
+	}
+	m_connectSocket.Close();
 	CDialogEx::OnCancel();
 }
 
@@ -447,8 +528,19 @@ void CNetworkClientDlg::OnEnChangeEditPort() {
 
 void CNetworkClientDlg::OnSelChangeListFriends() {
 	int idx = m_friendList.GetCurSel();
-	if (idx != LB_ERR) {
-		m_selectedFriendId = static_cast<int>(m_friendList.GetItemData(idx));
+	if (idx == LB_ERR) return;
+
+	m_selectedFriendId = static_cast<int>(m_friendList.GetItemData(idx));
+
+	// 切换好友后自动请求与该好友的聊天历史（群聊没有持久化历史，跳过）
+	if (m_userId > 0 && m_selectedFriendId > 0) {
+		std::string json = JsonMakeObject({
+			JsonSetInt("user_id", m_userId),
+			JsonSetInt("other_user_id", m_selectedFriendId),
+			JsonSetInt("limit", 50)
+			});
+		auto data = ProtocolEncode(MsgType::HISTORY, json);
+		m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
 	}
 }
 
@@ -457,6 +549,7 @@ void CNetworkClientDlg::OnSelChangeListFriends() {
 // ============================================================================
 
 void CNetworkClientDlg::OnConnect() {
+	m_bConnecting = false;
 	UpdateStatus(_T("已连接"));
 	GetDlgItem(IDC_BUTTON_DISCONNECT)->EnableWindow(TRUE);
 	UpdateLog(_T("[连接] TCP 连接成功"));
@@ -465,6 +558,17 @@ void CNetworkClientDlg::OnConnect() {
 	std::string json = "{\"username\":\"" + m_username + "\"}";
 	std::vector<uint8_t> data = ProtocolEncode(MsgType::LOGIN, json);
 	m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
+}
+
+void CNetworkClientDlg::OnConnectError(int nErrorCode) {
+	m_bConnecting = false;
+	m_connectSocket.Close();
+	UpdateStatus(_T("未连接"));
+	GetDlgItem(IDC_BUTTON_CONNECT)->EnableWindow(TRUE);
+	CString msg;
+	msg.Format(_T("[连接] TCP 连接失败，错误码: %d"), nErrorCode);
+	UpdateLog(msg);
+	AfxMessageBox(_T("连接服务器失败，请检查 IP 和端口！"));
 }
 
 void CNetworkClientDlg::OnReceive() {
@@ -485,14 +589,16 @@ void CNetworkClientDlg::OnReceive() {
 		uint32_t type, length;
 		std::string json;
 		while (m_recvBuf.next(type, length, json)) {
-			UpdateLog(_T("[接收] 消息类型: ") + CString(std::to_string(type).c_str()) +
-				_T(", 内容: ") + CString(json.c_str()));
+			// json 是 UTF-8 字节流，需要 CA2W 走 UTF-8 转换避免乱码
+			UpdateLog(_T("[接收] 类型: ") + CString(std::to_string(type).c_str()) +
+				_T(", 内容: ") + CString(CA2W(json.c_str(), CP_UTF8)));
 			m_dispatcher.dispatch(static_cast<MsgType>(type), json);
 		}
 	}
 }
 
 void CNetworkClientDlg::OnClose() {
+	m_bConnecting = false;
 	m_connectSocket.Close();
 	m_friendList.ResetContent();
 	m_friendMap.clear();
@@ -560,6 +666,8 @@ void CNetworkClientDlg::OnMessageReceived(const std::string& senderName,
 }
 
 void CNetworkClientDlg::RefreshFriendList(const std::vector<FriendInfo>& friends) {
+	int prevSelected = m_selectedFriendId;
+
 	m_friendList.ResetContent();
 	m_friendMap.clear();
 
@@ -570,6 +678,17 @@ void CNetworkClientDlg::RefreshFriendList(const std::vector<FriendInfo>& friends
 	// 也添加"全体"选项用于群聊
 	int idx = m_friendList.AddString(_T("★ 全体（群聊）"));
 	m_friendList.SetItemData(idx, 0);  // user_id=0 表示全体
+
+	// 恢复选中（如果之前选中的好友还在列表里）
+	if (prevSelected >= 0) {
+		int count = m_friendList.GetCount();
+		for (int i = 0; i < count; ++i) {
+			if (static_cast<int>(m_friendList.GetItemData(i)) == prevSelected) {
+				m_friendList.SetCurSel(i);
+				break;
+			}
+		}
+	}
 }
 
 void CNetworkClientDlg::AddFriendToList(int userId, const std::string& name,
@@ -587,6 +706,10 @@ void CNetworkClientDlg::AddFriendToList(int userId, const std::string& name,
 }
 
 void CNetworkClientDlg::RemoveFriendFromList(int userId) {
+	// 删除的就是当前选中的，清空选中
+	if (m_selectedFriendId == userId) {
+		m_selectedFriendId = -1;
+	}
 	m_friendMap.erase(userId);
 
 	// 重建显示

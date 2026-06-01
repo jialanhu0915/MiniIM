@@ -38,10 +38,12 @@ void CConnectSocket::OnClose(int nErrorCode)
 
 void CConnectSocket::OnConnect(int nErrorCode)
 {
-	if (nErrorCode == 0)
+	if (m_pDlg)
 	{
-		if (m_pDlg)
+		if (nErrorCode == 0)
 			m_pDlg->OnConnect();
+		else
+			m_pDlg->OnConnectError(nErrorCode);
 	}
 	CAsyncSocket::OnConnect(nErrorCode);
 }

@@ -113,16 +113,21 @@ SQLiteWrapper::~SQLiteWrapper() {
 // ============================================================================
 
 bool SQLiteWrapper::bOpenDb(const char* dbPath) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bOpenDbImpl(dbPath);
+}
+
+bool SQLiteWrapper::bOpenDbImpl(const char* dbPath) {
     if (sqlite3_open(dbPath, &m_db) != SQLITE_OK) {
         return false;
     }
 
-    // ---- 连接级参数（生产环境标配） ----
+    // DB params
     const char* pragmas =
-        "PRAGMA foreign_keys = ON;"          // 启用外键约束
-        "PRAGMA journal_mode = WAL;"         // Write-Ahead Logging，读写并发更高
-        "PRAGMA busy_timeout = 5000;"        // 锁等待最多 5 秒，不立即失败
-        "PRAGMA synchronous = NORMAL;"       // WAL 下 NORMAL 已足够安全
+        "PRAGMA foreign_keys = ON;"
+        "PRAGMA journal_mode = WAL;"
+        "PRAGMA busy_timeout = 5000;"
+        "PRAGMA synchronous = NORMAL;"
         ;
 
     char* errMsg = nullptr;
@@ -133,7 +138,7 @@ bool SQLiteWrapper::bOpenDb(const char* dbPath) {
         return false;
     }
 
-    // ---- 建表 ----
+    // create tables
     const char* ddl =
         "CREATE TABLE IF NOT EXISTS users ("
         "   user_id    INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -197,6 +202,11 @@ bool SQLiteWrapper::bOpenDb(const char* dbPath) {
 }
 
 bool SQLiteWrapper::bCloseDb() {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bCloseDbImpl();
+}
+
+bool SQLiteWrapper::bCloseDbImpl() {
     if (m_db) {
         sqlite3_close(m_db);
         m_db = nullptr;
@@ -209,9 +219,14 @@ bool SQLiteWrapper::bCloseDb() {
 // ============================================================================
 
 int SQLiteWrapper::iAddUser(const std::string& username) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return iAddUserImpl(username);
+}
+
+int SQLiteWrapper::iAddUserImpl(const std::string& username) {
     // 已存在则直接返回已有 ID
-    if (bUserExistsByName(username)) {
-        return iGetUserId(username);
+    if (bUserExistsByNameImpl(username)) {
+        return iGetUserIdImpl(username);
     }
 
     StmtGuard stmt;
@@ -230,6 +245,11 @@ int SQLiteWrapper::iAddUser(const std::string& username) {
 }
 
 int SQLiteWrapper::iGetUserId(const std::string& username) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return iGetUserIdImpl(username);
+}
+
+int SQLiteWrapper::iGetUserIdImpl(const std::string& username) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT user_id FROM users WHERE username = ?;",
@@ -247,6 +267,11 @@ int SQLiteWrapper::iGetUserId(const std::string& username) {
 }
 
 std::string SQLiteWrapper::strGetUsername(int userId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return strGetUsernameImpl(userId);
+}
+
+std::string SQLiteWrapper::strGetUsernameImpl(int userId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT username FROM users WHERE user_id = ?;",
@@ -267,6 +292,11 @@ std::string SQLiteWrapper::strGetUsername(int userId) {
 }
 
 bool SQLiteWrapper::bUserExistsByName(const std::string& username) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bUserExistsByNameImpl(username);
+}
+
+bool SQLiteWrapper::bUserExistsByNameImpl(const std::string& username) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT 1 FROM users WHERE username = ? LIMIT 1;",
@@ -279,6 +309,11 @@ bool SQLiteWrapper::bUserExistsByName(const std::string& username) {
 }
 
 bool SQLiteWrapper::bUserExistsByID(int userId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bUserExistsByIDImpl(userId);
+}
+
+bool SQLiteWrapper::bUserExistsByIDImpl(int userId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT 1 FROM users WHERE user_id = ? LIMIT 1;",
@@ -296,6 +331,12 @@ bool SQLiteWrapper::bUserExistsByID(int userId) {
 
 bool SQLiteWrapper::bSaveMessage(int senderId, int receiverId,
                                   const std::string& content) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bSaveMessageImpl(senderId, receiverId, content);
+}
+
+bool SQLiteWrapper::bSaveMessageImpl(int senderId, int receiverId,
+                                     const std::string& content) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "INSERT INTO messages (sender_id, receiver_id, content) "
@@ -313,6 +354,12 @@ bool SQLiteWrapper::bSaveMessage(int senderId, int receiverId,
 
 bool SQLiteWrapper::bGetMessages(int userId, int otherUserId, int limit,
                                   std::vector<std::string>& results) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bGetMessagesImpl(userId, otherUserId, limit, results);
+}
+
+bool SQLiteWrapper::bGetMessagesImpl(int userId, int otherUserId, int limit,
+                                     std::vector<std::string>& results) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT sender_id, receiver_id, content, timestamp "
@@ -349,6 +396,11 @@ bool SQLiteWrapper::bGetMessages(int userId, int otherUserId, int limit,
 }
 
 bool SQLiteWrapper::bMarkMessagesAsRead(int senderId, int receiverId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bMarkMessagesAsReadImpl(senderId, receiverId);
+}
+
+bool SQLiteWrapper::bMarkMessagesAsReadImpl(int senderId, int receiverId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "UPDATE messages SET is_read = 1 "
@@ -364,6 +416,11 @@ bool SQLiteWrapper::bMarkMessagesAsRead(int senderId, int receiverId) {
 }
 
 int SQLiteWrapper::iGetUnreadCount(int userId, int otherUserId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return iGetUnreadCountImpl(userId, otherUserId);
+}
+
+int SQLiteWrapper::iGetUnreadCountImpl(int userId, int otherUserId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT COUNT(*) FROM messages "
@@ -386,7 +443,12 @@ int SQLiteWrapper::iGetUnreadCount(int userId, int otherUserId) {
 // ============================================================================
 
 bool SQLiteWrapper::bAddFriend(int userId, int friendId) {
-    if (!bUserExistsByID(userId) || !bUserExistsByID(friendId)) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bAddFriendImpl(userId, friendId);
+}
+
+bool SQLiteWrapper::bAddFriendImpl(int userId, int friendId) {
+    if (!bUserExistsByIDImpl(userId) || !bUserExistsByIDImpl(friendId)) {
         return false;
     }
     if (userId == friendId) {
@@ -425,6 +487,11 @@ bool SQLiteWrapper::bAddFriend(int userId, int friendId) {
 }
 
 bool SQLiteWrapper::bRemoveFriend(int userId, int friendId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bRemoveFriendImpl(userId, friendId);
+}
+
+bool SQLiteWrapper::bRemoveFriendImpl(int userId, int friendId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "DELETE FROM friends "
@@ -443,6 +510,11 @@ bool SQLiteWrapper::bRemoveFriend(int userId, int friendId) {
 }
 
 bool SQLiteWrapper::bIsFriend(int userId, int friendId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bIsFriendImpl(userId, friendId);
+}
+
+bool SQLiteWrapper::bIsFriendImpl(int userId, int friendId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT 1 FROM friends "
@@ -459,6 +531,12 @@ bool SQLiteWrapper::bIsFriend(int userId, int friendId) {
 
 std::vector<std::pair<int, std::string>>
 SQLiteWrapper::vecGetFriends(int userId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return vecGetFriendsImpl(userId);
+}
+
+std::vector<std::pair<int, std::string>>
+SQLiteWrapper::vecGetFriendsImpl(int userId) {
     std::vector<std::pair<int, std::string>> result;
 
     StmtGuard stmt;
@@ -491,6 +569,14 @@ int SQLiteWrapper::iSaveFileRecord(int senderId, int receiverId,
                                     const std::string& filename,
                                     long filesize,
                                     const std::string& filepath) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return iSaveFileRecordImpl(senderId, receiverId, filename, filesize, filepath);
+}
+
+int SQLiteWrapper::iSaveFileRecordImpl(int senderId, int receiverId,
+                                       const std::string& filename,
+                                       long filesize,
+                                       const std::string& filepath) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "INSERT INTO files (sender_id, receiver_id, filename, filesize, filepath) "
@@ -512,6 +598,11 @@ int SQLiteWrapper::iSaveFileRecord(int senderId, int receiverId,
 }
 
 bool SQLiteWrapper::bUpdateFileDownloaded(int fileId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bUpdateFileDownloadedImpl(fileId);
+}
+
+bool SQLiteWrapper::bUpdateFileDownloadedImpl(int fileId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "UPDATE files SET is_downloaded = 1 WHERE file_id = ?;",
@@ -529,6 +620,12 @@ bool SQLiteWrapper::bUpdateFileDownloaded(int fileId) {
 
 bool SQLiteWrapper::bSaveOfflineMessage(int senderId, int receiverId,
                                          const std::string& content) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bSaveOfflineMessageImpl(senderId, receiverId, content);
+}
+
+bool SQLiteWrapper::bSaveOfflineMessageImpl(int senderId, int receiverId,
+                                             const std::string& content) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "INSERT INTO offline_messages (sender_id, receiver_id, content) "
@@ -546,6 +643,12 @@ bool SQLiteWrapper::bSaveOfflineMessage(int senderId, int receiverId,
 
 bool SQLiteWrapper::bGetOfflineMessages(int userId,
                                          std::vector<std::string>& results) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bGetOfflineMessagesImpl(userId, results);
+}
+
+bool SQLiteWrapper::bGetOfflineMessagesImpl(int userId,
+                                              std::vector<std::string>& results) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT msg_id, sender_id, receiver_id, content, timestamp "
@@ -576,6 +679,11 @@ bool SQLiteWrapper::bGetOfflineMessages(int userId,
 }
 
 int SQLiteWrapper::iGetOfflineMessageCount(int userId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return iGetOfflineMessageCountImpl(userId);
+}
+
+int SQLiteWrapper::iGetOfflineMessageCountImpl(int userId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT COUNT(*) FROM offline_messages "
@@ -593,6 +701,11 @@ int SQLiteWrapper::iGetOfflineMessageCount(int userId) {
 }
 
 bool SQLiteWrapper::bDeleteOfflineMessage(int msgId) {
+    CSingleLock lock(&m_csDb, TRUE);
+    return bDeleteOfflineMessageImpl(msgId);
+}
+
+bool SQLiteWrapper::bDeleteOfflineMessageImpl(int msgId) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "DELETE FROM offline_messages WHERE msg_id = ?;",
