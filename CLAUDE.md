@@ -2,6 +2,47 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 代码注释规范（全项目统一）
+
+所有 C++ 源文件必须使用 **Doxygen 风格注释**（`/** */`），覆盖：
+
+- 所有 `public` 方法（含文件作用域自由函数）
+- 关键 `private` / `protected` 方法
+- 类 / 结构体定义（含 `brief` 说明）
+- 重要成员变量（含用途说明）
+
+### 格式模板
+
+```cpp
+/**
+ * @brief  简要说明这个函数做什么
+ * @param  param1  参数1的用途（标注 [in]/[out]/[in,out]）
+ * @param  param2  参数2的用途
+ * @return 返回值说明（void 时省略）
+ * @note   可选：注意事项或特殊行为
+ */
+void exampleFunction(int param1, const std::string& param2);
+```
+
+### 示例（正确 vs 错误）
+
+```cpp
+// WRONG — natural language single-line comment, lacks structure
+// This is the function to send messages, need to check if user is logged in first
+
+// CORRECT — Doxygen style
+/**
+ * @brief  Send a text message to the selected friend or group chat
+ * @param  strMsg  Message content (UTF-8), timestamp constructed by sender
+ * @return void
+ * @note   When receiver_id=0 sends GROUP_TEXT, otherwise sends TEXT
+ */
+```
+
+### 注释语言
+
+优先使用**英文**，保持国际化和 AI 可读性。已有中文注释的源文件（如 NetworkServerDlg.cpp）保留中文，不强制迁移。
+
 ## 项目概述
 
 即时通讯（IM）客户端/服务端学习项目，基于 MFC + Windows Socket。教学用，含好友管理、单聊、群聊、文件传输模块。
@@ -153,7 +194,7 @@ UI 线程 ── CAsyncSocket 异步回调 ── RecvBuffer ── ProtocolDisp
 ```cpp
 // 错误 — 每个字段没有外层括号
 result = JsonSetInt("user_id", 2) + "," + JsonSetString("username", "Bob");
-// → "user_id":2,"username":"Bob"  （缺少 {}）
+// -> "user_id":2,"username":"Bob"  （缺少 {}）
 
 // 正确 — 用 JsonMakeObject 包裹
 result = JsonMakeObject({
@@ -161,7 +202,7 @@ result = JsonMakeObject({
     JsonSetString("username", "Bob"),
     JsonSetString("online", "false")
 });
-// → {"user_id":2,"username":"Bob","online":"false"}
+// -> {"user_id":2,"username":"Bob","online":"false"}
 ```
 
 ## 数据库
