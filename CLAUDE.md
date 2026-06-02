@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 编辑 .h/.cpp 后的必检项（高频踩坑）
+
+**任何对 .h/.cpp 的修改完成后，必须在 WSL 端运行**：
+
+```bash
+file path/to/file.h path/to/file.cpp
+```
+
+**期望输出**：`UTF-8 (with BOM) text, with CRLF line terminators`
+
+如果缺 BOM 或行尾是 LF：**立刻修复**（详见下文 WSL 编码章节）。这是 MSVC 编译失败的最常见根因。
+
+**禁止在代码注释/字符串中使用 em-dash（`—`）和 en-dash（`–`）**—— UTF-8 字节序列 `E2 80 94` 在 GBK 解析下会错位，污染后续 ASCII 标识符。改用 ` - `、` -- ` 或中文标点「、」「（」「）」。
+
 ## 代码注释规范（全项目统一）
 
 所有 C++ 源文件必须使用 **Doxygen 风格注释**（`/** */`），覆盖：
