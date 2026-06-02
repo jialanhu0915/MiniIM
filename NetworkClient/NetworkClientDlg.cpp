@@ -23,6 +23,9 @@
  // CAboutDlg
  // ============================================================================
 
+/**
+ * @brief 关于对话框
+ */
 class CAboutDlg : public CDialogEx
 {
 public:
@@ -32,8 +35,15 @@ protected:
 	DECLARE_MESSAGE_MAP()
 };
 
+/**
+ * @brief 默认构造
+ */
 CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX) {}
 
+/**
+ * @brief MFC 数据交换（DDX）
+ * @param pDX 数据交换上下文
+ */
 void CAboutDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 }
@@ -66,6 +76,9 @@ END_MESSAGE_MAP()
 // 构造 / 初始化
 // ============================================================================
 
+/**
+ * @brief 默认构造函数
+ */
 CNetworkClientDlg::CNetworkClientDlg(CWnd* pParent)
 	: CDialogEx(IDD_NETWORKCLIENT_DIALOG, pParent)
 {
@@ -73,6 +86,10 @@ CNetworkClientDlg::CNetworkClientDlg(CWnd* pParent)
 	m_connectSocket.m_pDlg = this;
 }
 
+/**
+ * @brief MFC 数据交换（DDX/DDV）
+ * @param pDX 数据交换上下文
+ */
 void CNetworkClientDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_EDIT_USERNAME, m_editUsername);
@@ -82,6 +99,10 @@ void CNetworkClientDlg::DoDataExchange(CDataExchange* pDX) {
 	DDX_Control(pDX, IDC_BUTTON_SENDFILE, m_btnSendFile);
 }
 
+/**
+ * @brief 对话框初始化，创建控件
+ * @return TRUE
+ */
 BOOL CNetworkClientDlg::OnInitDialog() {
 	CDialogEx::OnInitDialog();
 
@@ -112,6 +133,11 @@ BOOL CNetworkClientDlg::OnInitDialog() {
 	return TRUE;
 }
 
+/**
+ * @brief 按键预处理（拦截 Enter 发送消息）
+ * @param pMsg 消息结构体
+ * @return TRUE 已处理，FALSE 继续传递
+ */
 BOOL CNetworkClientDlg::PreTranslateMessage(MSG* pMsg) {
 	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN) {
 		// 如果焦点在消息发送框（IDC_EDIT_MSG），触发发送
@@ -129,6 +155,9 @@ BOOL CNetworkClientDlg::PreTranslateMessage(MSG* pMsg) {
 // ============================================================================
 // 协议处理器注册（示例框架，你的网络层代码参考）
 // ============================================================================
+/**
+ * @brief 注册所有协议消息处理器
+ */
 void CNetworkClientDlg::RegisterProtocolHandlers() {
 	// 下面是你收到不同类型消息时的处理逻辑框架。
 	// 实际代码中，你在 OnReceive 里把 byte 喂给 m_recvBuf，
@@ -304,6 +333,11 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 // 已有系统消息处理
 // ============================================================================
 
+/**
+ * @brief 系统命令处理
+ * @param nID 命令 ID
+ * @param lParam 命令参数
+ */
 void CNetworkClientDlg::OnSysCommand(UINT nID, LPARAM lParam) {
 	if ((nID & 0xFFF0) == IDM_ABOUTBOX) {
 		CAboutDlg dlgAbout;
@@ -314,6 +348,9 @@ void CNetworkClientDlg::OnSysCommand(UINT nID, LPARAM lParam) {
 	}
 }
 
+/**
+ * @brief 窗口重绘处理
+ */
 void CNetworkClientDlg::OnPaint() {
 	if (IsIconic()) {
 		CPaintDC dc(this);
@@ -332,6 +369,10 @@ void CNetworkClientDlg::OnPaint() {
 	}
 }
 
+/**
+ * @brief 查询拖拽图标
+ * @return HCURSOR 图标句柄
+ */
 HCURSOR CNetworkClientDlg::OnQueryDragIcon() {
 	return static_cast<HCURSOR>(m_hIcon);
 }
@@ -340,6 +381,9 @@ HCURSOR CNetworkClientDlg::OnQueryDragIcon() {
 // 按钮事件
 // ============================================================================
 
+/**
+ * @brief 连接/断开按钮点击处理
+ */
 void CNetworkClientDlg::OnBnClickedButtonConnect() {
 	if (m_bConnecting) return;  // 正在连接中，忽略重复点击
 
@@ -373,6 +417,9 @@ void CNetworkClientDlg::OnBnClickedButtonConnect() {
 	UpdateLog(_T("[连接] 正在连接 ") + strIP + _T(":") + strPort);
 }
 
+/**
+ * @brief 断开服务器连接
+ */
 void CNetworkClientDlg::OnBnClickedButtonDisconnect() {
 	// TODO: 你的网络层代码：发送 LOGOUT 消息，关闭 socket
 	// 通知服务端
@@ -396,6 +443,9 @@ void CNetworkClientDlg::OnBnClickedButtonDisconnect() {
 	UpdateLog(_T("[断开] 已断开连接"));
 }
 
+/**
+ * @brief 发送消息按钮点击处理
+ */
 void CNetworkClientDlg::OnBnClickedButtonSend() {
 	CString strMsg;
 	GetDlgItemText(IDC_EDIT_MSG, strMsg);
@@ -438,6 +488,9 @@ void CNetworkClientDlg::OnBnClickedButtonSend() {
 	SetDlgItemText(IDC_EDIT_MSG, _T(""));
 }
 
+/**
+ * @brief 发送文件按钮点击处理
+ */
 void CNetworkClientDlg::OnBnClickedButtonSendFile() {
 	if (m_userId < 0 || m_selectedFriendId < 0) {
 		AfxMessageBox(_T("请先选择一个在线好友！"));
@@ -459,6 +512,9 @@ void CNetworkClientDlg::OnBnClickedButtonSendFile() {
 	AppendChatMessage(_T("[文件] 发送文件请求: ") + fileName);
 }
 
+/**
+ * @brief 添加好友按钮点击处理
+ */
 void CNetworkClientDlg::OnBnClickedButtonAddFriend() {
 	if (m_userId < 0) {
 		AfxMessageBox(_T("请先登录！"));
@@ -489,6 +545,9 @@ void CNetworkClientDlg::OnBnClickedButtonAddFriend() {
 	UpdateLog(_T("[好友] 发送添加好友请求: ") + strName);
 }
 
+/**
+ * @brief 删除好友按钮点击处理
+ */
 void CNetworkClientDlg::OnBnClickedButtonRemoveFriend() {
 	if (m_selectedFriendId <= 0) {
 		AfxMessageBox(_T("请先选择一个好友！"));
@@ -508,6 +567,9 @@ void CNetworkClientDlg::OnBnClickedButtonRemoveFriend() {
 	UpdateLog(_T("[好友] 已发送删除好友请求"));
 }
 
+/**
+ * @brief 对话框关闭（发送 LOGOUT 后关闭）
+ */
 void CNetworkClientDlg::OnCancel() {
 	// 关闭前通知服务端，避免服务端误判异常断开
 	if (m_userId > 0) {
@@ -519,13 +581,25 @@ void CNetworkClientDlg::OnCancel() {
 	CDialogEx::OnCancel();
 }
 
+/**
+ * @brief 消息编辑框内容变化
+ * @note 预留，当前为空
+ */
 void CNetworkClientDlg::OnEnChangeEditMsg() {
 
 }
+
+/**
+ * @brief 端口编辑框内容变化
+ * @note 预留，当前为空
+ */
 void CNetworkClientDlg::OnEnChangeEditPort() {
 
 }
 
+/**
+ * @brief 好友列表选中项变化处理
+ */
 void CNetworkClientDlg::OnSelChangeListFriends() {
 	int idx = m_friendList.GetCurSel();
 	if (idx == LB_ERR) return;
@@ -548,6 +622,9 @@ void CNetworkClientDlg::OnSelChangeListFriends() {
 // 已有的网络回调（你在实现网络层时会调整这些）
 // ============================================================================
 
+/**
+ * @brief 网络连接成功回调
+ */
 void CNetworkClientDlg::OnConnect() {
 	m_bConnecting = false;
 	UpdateStatus(_T("已连接"));
@@ -560,6 +637,10 @@ void CNetworkClientDlg::OnConnect() {
 	m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
 }
 
+/**
+ * @brief 网络连接失败回调
+ * @param nErrorCode 错误码
+ */
 void CNetworkClientDlg::OnConnectError(int nErrorCode) {
 	m_bConnecting = false;
 	m_connectSocket.Close();
@@ -571,6 +652,9 @@ void CNetworkClientDlg::OnConnectError(int nErrorCode) {
 	AfxMessageBox(_T("连接服务器失败，请检查 IP 和端口！"));
 }
 
+/**
+ * @brief 接收到数据回调
+ */
 void CNetworkClientDlg::OnReceive() {
 	/* 旧代码：
 	char szBuf[1024] = { 0 };
@@ -597,6 +681,9 @@ void CNetworkClientDlg::OnReceive() {
 	}
 }
 
+/**
+ * @brief 连接关闭回调
+ */
 void CNetworkClientDlg::OnClose() {
 	m_bConnecting = false;
 	m_connectSocket.Close();
@@ -611,6 +698,10 @@ void CNetworkClientDlg::OnClose() {
 	UpdateLog(_T("[断开] 服务端已断开"));
 }
 
+/**
+ * @brief 在日志区追加一行文本
+ * @param str 日志内容
+ */
 void CNetworkClientDlg::UpdateLog(const CString& str) {
 	CString strLog;
 	GetDlgItemText(IDC_EDIT_LOG, strLog);
@@ -622,6 +713,12 @@ void CNetworkClientDlg::UpdateLog(const CString& str) {
 // 公开方法 — 你的网络层调用这些来更新 UI
 // ============================================================================
 
+/**
+ * @brief 登录成功后更新 UI（好友列表、状态）
+ * @param userId 用户 ID
+ * @param username 用户名
+ * @param friends 好友列表
+ */
 void CNetworkClientDlg::OnLoginSuccess(int userId, const std::string& username,
 	const std::vector<FriendInfo>& friends) {
 	m_userId = userId;
@@ -637,6 +734,12 @@ void CNetworkClientDlg::OnLoginSuccess(int userId, const std::string& username,
 	m_btnSendFile.EnableWindow(TRUE);
 }
 
+/**
+ * @brief 好友上下线状态变化处理
+ * @param userId 好友用户 ID
+ * @param name 好友用户名
+ * @param online 是否在线
+ */
 void CNetworkClientDlg::OnFriendStatusChanged(int userId,
 	const std::string& name,
 	bool online) {
@@ -654,6 +757,12 @@ void CNetworkClientDlg::OnFriendStatusChanged(int userId,
 	UpdateLog(CString(name.c_str()) + _T(" ") + status);
 }
 
+/**
+ * @brief 收到文本消息处理
+ * @param senderName 发送者用户名
+ * @param content 消息内容
+ * @param timestamp 时间戳
+ */
 void CNetworkClientDlg::OnMessageReceived(const std::string& senderName,
 	const std::string& content,
 	const std::string& timestamp) {
@@ -665,6 +774,10 @@ void CNetworkClientDlg::OnMessageReceived(const std::string& senderName,
 	AppendChatMessage(msg);
 }
 
+/**
+ * @brief 刷新好友列表控件
+ * @param friends 好友信息数组
+ */
 void CNetworkClientDlg::RefreshFriendList(const std::vector<FriendInfo>& friends) {
 	int prevSelected = m_selectedFriendId;
 
@@ -691,6 +804,12 @@ void CNetworkClientDlg::RefreshFriendList(const std::vector<FriendInfo>& friends
 	}
 }
 
+/**
+ * @brief 向列表中添加一个好友
+ * @param userId 好友用户 ID
+ * @param name 好友用户名
+ * @param online 是否在线
+ */
 void CNetworkClientDlg::AddFriendToList(int userId, const std::string& name,
 	bool online) {
 	m_friendMap[userId] = { userId, name, online };
@@ -705,6 +824,10 @@ void CNetworkClientDlg::AddFriendToList(int userId, const std::string& name,
 	m_friendList.SetItemData(idx, userId);
 }
 
+/**
+ * @brief 从列表中移除一个好友
+ * @param userId 好友用户 ID
+ */
 void CNetworkClientDlg::RemoveFriendFromList(int userId) {
 	// 删除的就是当前选中的，清空选中
 	if (m_selectedFriendId == userId) {
@@ -718,10 +841,18 @@ void CNetworkClientDlg::RemoveFriendFromList(int userId) {
 	RefreshFriendList(all);
 }
 
+/**
+ * @brief 更新状态栏文本
+ * @param text 状态栏内容
+ */
 void CNetworkClientDlg::UpdateStatus(const CString& text) {
 	SetDlgItemText(IDC_STATIC_STATUS, text);
 }
 
+/**
+ * @brief 在聊天区追加一条消息
+ * @param msg 聊天消息文本
+ */
 void CNetworkClientDlg::AppendChatMessage(const CString& msg) {
 	CString strLog;
 	GetDlgItemText(IDC_EDIT_LOG, strLog);

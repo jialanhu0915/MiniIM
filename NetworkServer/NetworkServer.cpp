@@ -2,6 +2,13 @@
 // NetworkServer.cpp: 定义应用程序的类行为。
 //
 
+/**
+ * @file   NetworkServer.cpp
+ * @brief  MFC 服务端应用程序实现（Winsock 初始化）
+ * @author Yan Runxin
+ * @date   2026-05-25
+ */
+
 #include "pch.h"
 #include "framework.h"
 #include "NetworkServer.h"
@@ -23,6 +30,7 @@ END_MESSAGE_MAP()
 
 CNetworkServerApp::CNetworkServerApp()
 {
+	/** @brief 构造，设置重启管理器支持 */
 	// 支持重新启动管理器
 	m_dwRestartManagerSupportFlags = AFX_RESTART_MANAGER_SUPPORT_RESTART;
 
@@ -40,6 +48,7 @@ CNetworkServerApp theApp;
 
 BOOL CNetworkServerApp::InitInstance()
 {
+	/** @brief 应用程序初始化：启动 Winsock → 显示主对话框 @return FALSE 退出消息循环 */
 	// 初始化 Winsock 库
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
@@ -114,6 +123,10 @@ BOOL CNetworkServerApp::InitInstance()
 }
 
 // 清理 Winsock 库
+/**
+ * @brief 清理 Winsock 库
+ * @return 退出码
+ */
 int CNetworkServerApp::ExitInstance()
 {
 	WSACleanup();

@@ -2,6 +2,14 @@
 #include "CListenSocket.h"
 #include "NetworkServerDlg.h"
 
+/**
+ * @file   CListenSocket.cpp
+ * @brief  服务端监听 socket 实现
+ * @author Yan Runxin
+ * @date   2026-05-25
+ */
+
+/** @brief 默认构造 */
 CListenSocket::CListenSocket()
 	: m_pDlg(nullptr)
 	, m_socket(INVALID_SOCKET)
@@ -15,6 +23,7 @@ CListenSocket::~CListenSocket()
 
 }
 
+/** @brief 创建监听 socket，绑定端口并开始监听 @param nPort 端口号 @return 成功返回 true */
 bool CListenSocket::Start(int port)
 {
 	m_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -45,6 +54,7 @@ bool CListenSocket::Start(int port)
 	return true;
 }
 
+/** @brief 通知线程退出并关闭 socket */
 void CListenSocket::Stop()
 {
 	InterlockedExchange(&m_bRunning, FALSE);    // 通知 RecvLoop 退出
@@ -58,6 +68,7 @@ void CListenSocket::Stop()
 	}
 }
 
+/** @brief 循环 accept() 客户端连接，收到后创建 CConnectSocket 并触发 ClientThread @param pParam CListenSocket 指针 @return 0 */
 UINT AFX_CDECL CListenSocket::ThreadProc(LPVOID pParam)
 {
 	CListenSocket* pThis = static_cast<CListenSocket*>(pParam);
@@ -65,6 +76,7 @@ UINT AFX_CDECL CListenSocket::ThreadProc(LPVOID pParam)
 	return 0;
 }
 
+/** @brief 循环接受客户端连接，创建 CConnectSocket 并启动其线程 */
 void CListenSocket::AcceptLoop()
 {
 	while (InterlockedCompareExchange(&m_bRunning, TRUE, TRUE) == TRUE) {

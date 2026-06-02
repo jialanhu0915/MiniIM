@@ -18,10 +18,17 @@
 
 #pragma comment(lib, "wininet.lib")
 
+/**
+ * @brief FTP 文件传输 RAII 封装类
+ * @note 基于 WinInet，构造即连接，析构自动断开。禁止拷贝。
+ */
 class FtpHelper
 {
 public:
+    /** @brief 默认构造（实例无效，需调用 Connect 后使用） */
     FtpHelper();
+
+    /** @brief 析构（自动调用 Disconnect） */
     ~FtpHelper();
 
     // 禁止拷贝
@@ -99,7 +106,7 @@ public:
     std::wstring GetLastErrorMessage() const;
 
 private:
-    HINTERNET m_hInternet;  // WinInet 根句柄
-    HINTERNET m_hFtp;       // FTP 会话句柄
-    DWORD     m_dwLastError;
+    HINTERNET m_hInternet; ///< WinInet 根句柄
+    HINTERNET m_hFtp;      ///< FTP 会话句柄
+    DWORD     m_dwLastError; ///< 最近一次 WinInet API 错误码
 };

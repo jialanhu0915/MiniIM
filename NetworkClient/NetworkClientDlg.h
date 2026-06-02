@@ -29,17 +29,22 @@
 #include <vector>
 #include <unordered_map>
 
-// 好友信息
+/**
+ * @brief 好友信息结构体
+ */
 struct FriendInfo {
-    int         userId;
-    std::string username;
-    bool        online;
+    int         userId;    ///< 用户 ID
+    std::string username;  ///< 用户名
+    bool        online;   ///< 是否在线
 };
 
-// CNetworkClientDlg 对话框
+/**
+ * @brief 主界面对话框
+ */
 class CNetworkClientDlg : public CDialogEx
 {
 public:
+    /** @brief 默认构造函数 */
     CNetworkClientDlg(CWnd* pParent = nullptr);
 
     // ---- 对话框数据 ----
@@ -48,14 +53,20 @@ public:
 #endif
 
 protected:
+    /** @brief MFC 数据交换（DDX/DDV） @param pDX 数据交换上下文 */
     virtual void DoDataExchange(CDataExchange* pDX);
     DECLARE_MESSAGE_MAP()
 
     // ---- MFC 消息处理 ----
+    /** @brief 对话框初始化，创建控件 */
     virtual BOOL OnInitDialog();
+    /** @brief 系统命令处理 @param nID 命令 ID @param lParam 命令参数 */
     afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+    /** @brief 窗口重绘处理 */
     afx_msg void OnPaint();
+    /** @brief 查询拖拽图标 @return HCURSOR 图标句柄 */
     afx_msg HCURSOR OnQueryDragIcon();
+    /** @brief 按键预处理（拦截 Enter 发送消息） @param pMsg 消息结构体 @return TRUE 已处理，FALSE 继续传递 */
     virtual BOOL PreTranslateMessage(MSG* pMsg);
 
 public:
@@ -74,6 +85,9 @@ public:
 
     /**
      * @brief  好友在线状态变化
+     * @param userId 好友用户 ID
+     * @param name   好友用户名
+     * @param online  是否在线
      */
     void OnFriendStatusChanged(int userId, const std::string& name, bool online);
 
@@ -89,48 +103,60 @@ public:
 
     /**
      * @brief  刷新好友列表（服务端推送完整列表时调用）
+     * @param friends 好友信息数组
      */
     void RefreshFriendList(const std::vector<FriendInfo>& friends);
 
     /**
      * @brief  添加好友到列表
+     * @param userId 好友用户 ID
+     * @param name   好友用户名
+     * @param online 是否在线
      */
     void AddFriendToList(int userId, const std::string& name, bool online);
 
     /**
      * @brief  从列表移除好友
+     * @param userId 好友用户 ID
      */
     void RemoveFriendFromList(int userId);
 
     /**
      * @brief  更新状态栏文本
+     * @param text 状态栏文本
      */
     void UpdateStatus(const CString& text);
 
     /**
      * @brief  在聊天区显示一条消息（用于发送确认等）
+     * @param msg 聊天消息文本
      */
     void AppendChatMessage(const CString& msg);
 
     // ================================================================
     //  用户当前状态（网络层可读写）
     // ================================================================
-    int         m_userId    = -1;
-    std::string m_username;
-    bool        m_bConnecting = false;  // 正在连接中（防止重复点连接）
+    int         m_userId    = -1;         ///< 当前登录用户 ID
+    std::string m_username;                ///< 当前登录用户名
+    bool        m_bConnecting = false;    ///< 正在连接中（防止重复点连接）
 
     // ---- RecvBuffer & Dispatcher（网络层在 OnReceive 中使用） ----
-    RecvBuffer          m_recvBuf;
-    ProtocolDispatcher  m_dispatcher;
+    RecvBuffer          m_recvBuf;     ///< 接收缓冲区
+    ProtocolDispatcher  m_dispatcher;  ///< 协议消息分发器
 
     // ---- 网络层自己的 socket（已有）----
-    CConnectSocket m_connectSocket;
+    CConnectSocket m_connectSocket;    ///< 到服务端连接 socket
 
     // ---- 网络层回调（已有）----
+    /** @brief 接收到数据回调 */
     void OnReceive();
+    /** @brief 连接关闭回调 */
     void OnClose();
+    /** @brief 网络连接成功回调 */
     void OnConnect();
-    void OnConnectError(int nErrorCode);  // 连接失败时调用
+    /** @brief 网络连接失败回调 @param nErrorCode 错误码 */
+    void OnConnectError(int nErrorCode);
+    /** @brief 在日志区追加文本 @param str 日志内容 */
     void UpdateLog(const CString& str);
 
 
@@ -144,35 +170,46 @@ private:
     CEdit   m_editUsername;      // 用户名输入
 
     // ---- 好友列表 ----
-    CListBox m_friendList;       // 好友列表框
-    CButton  m_btnAddFriend;     // 添加好友按钮
-    CButton  m_btnRemoveFriend;  // 删除好友按钮
+    CListBox m_friendList;           ///< 好友列表框
+    CButton  m_btnAddFriend;        ///< 添加好友按钮
+    CButton  m_btnRemoveFriend;     ///< 删除好友按钮
 
     // ---- 聊天区（复用 IDC_EDIT_LOG，m_chatDisplay 字段已删除）----
 
     // ---- 文件传输 ----
-    CButton m_btnSendFile;       // 发送文件按钮
+    CButton m_btnSendFile;           ///< 发送文件按钮
 
     // ---- 数据 ----
-    std::unordered_map<int, FriendInfo> m_friendMap;  // userId → FriendInfo
-    int m_selectedFriendId = -1;                       // 当前选中的好友
+    std::unordered_map<int, FriendInfo> m_friendMap;  ///< userId 到好友信息映射
+    int m_selectedFriendId = -1;                       ///< 当前选中好友 ID
 
     // ================================================================
     //  内部方法
     // ================================================================
-    void RegisterProtocolHandlers();  // 注册消息处理器（供你参考）
+    /** @brief 注册所有协议消息处理器 */
+    void RegisterProtocolHandlers();
 
     // ---- 按钮事件处理 ----
+    /** @brief 连接/断开按钮点击 */
     afx_msg void OnBnClickedButtonConnect();
+    /** @brief 断开服务器连接 */
     afx_msg void OnBnClickedButtonDisconnect();
+    /** @brief 发送消息按钮点击 */
     afx_msg void OnBnClickedButtonSend();
+    /** @brief 发送文件按钮点击 */
     afx_msg void OnBnClickedButtonSendFile();
+    /** @brief 添加好友按钮点击 */
     afx_msg void OnBnClickedButtonAddFriend();
+    /** @brief 删除好友按钮点击 */
     afx_msg void OnBnClickedButtonRemoveFriend();
+    /** @brief 对话框关闭 */
     afx_msg void OnCancel();
+    /** @brief 消息编辑框变化 @note 预留，当前为空 */
     afx_msg void OnEnChangeEditMsg();
+    /** @brief 端口编辑框变化 @note 预留，当前为空 */
     afx_msg void OnEnChangeEditPort();
+    /** @brief 好友列表选中项变化 */
     afx_msg void OnSelChangeListFriends();
 
-    HICON m_hIcon;
+    HICON m_hIcon;  ///< 程序图标句柄
 };

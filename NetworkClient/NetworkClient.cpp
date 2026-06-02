@@ -1,6 +1,10 @@
 ﻿
-// NetworkClient.cpp: 定义应用程序的类行为。
-//
+/**
+ * @file NetworkClient.cpp
+ * @brief MFC 应用程序类实现（Winsock 初始化/清理）
+ * @author Yan Runxin
+ * @date 2026-05-25
+ */
 
 #include "pch.h"
 #include "framework.h"
@@ -19,8 +23,7 @@ BEGIN_MESSAGE_MAP(CNetworkClientApp, CWinApp)
 END_MESSAGE_MAP()
 
 
-// CNetworkClientApp 构造
-
+/** @brief MFC 应用单例构造，设置重启管理器支持标志 */
 CNetworkClientApp::CNetworkClientApp()
 {
 	// 支持重新启动管理器
@@ -38,6 +41,9 @@ CNetworkClientApp theApp;
 
 // CNetworkClientApp 初始化
 
+/** @brief 应用程序入口：初始化 Winsock → 显示主对话框
+ * @return FALSE 退出消息循环（对话框关闭后返回 FALSE）
+ */
 BOOL CNetworkClientApp::InitInstance()
 {
 	// 初始化 Winsock 库
@@ -112,7 +118,9 @@ BOOL CNetworkClientApp::InitInstance()
 	return FALSE;
 }
 
-// 清理 Winsock 库
+/** @brief 清理 Winsock 库
+ * @return 应用退出码
+ */
 int CNetworkClientApp::ExitInstance()
 {
 	WSACleanup();

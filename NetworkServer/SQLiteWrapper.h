@@ -222,34 +222,55 @@ private:
 
     // ---- 不加锁的内部实现，调用方必须已持有 m_csDb ----
 
+    /** @brief 打开数据库连接（内部实现，不加锁） */
     bool bOpenDbImpl(const char* dbPath);
+    /** @brief 关闭数据库连接（内部实现，不加锁） */
     bool bCloseDbImpl();
 
+    /** @brief 添加用户（内部实现，不加锁） */
     int         iAddUserImpl(const std::string& username);
+    /** @brief 根据用户名查询用户ID（内部实现，不加锁） */
     int         iGetUserIdImpl(const std::string& username);
+    /** @brief 根据用户ID查询用户名（内部实现，不加锁） */
     std::string strGetUsernameImpl(int userId);
+    /** @brief 检查用户是否存在（按用户名，内部实现，不加锁） */
     bool        bUserExistsByNameImpl(const std::string& username);
+    /** @brief 检查用户是否存在（按用户ID，内部实现，不加锁） */
     bool        bUserExistsByIDImpl(int userId);
 
+    /** @brief 保存聊天消息（内部实现，不加锁） */
     bool bSaveMessageImpl(int senderId, int receiverId, const std::string& content);
+    /** @brief 获取聊天记录（内部实现，不加锁） */
     bool bGetMessagesImpl(int userId, int otherUserId, int limit,
                            std::vector<std::string>& results);
+    /** @brief 标记消息为已读（内部实现，不加锁） */
     bool bMarkMessagesAsReadImpl(int senderId, int receiverId);
+    /** @brief 获取未读消息数量（内部实现，不加锁） */
     int  iGetUnreadCountImpl(int userId, int otherUserId);
 
+    /** @brief 添加好友关系（内部实现，不加锁） */
     bool bAddFriendImpl(int userId, int friendId);
+    /** @brief 删除好友关系（内部实现，不加锁） */
     bool bRemoveFriendImpl(int userId, int friendId);
+    /** @brief 检查是否为好友关系（内部实现，不加锁） */
     bool bIsFriendImpl(int userId, int friendId);
+    /** @brief 获取好友列表（内部实现，不加锁） */
     std::vector<std::pair<int, std::string>> vecGetFriendsImpl(int userId);
 
+    /** @brief 保存文件传输记录（内部实现，不加锁） */
     int  iSaveFileRecordImpl(int senderId, int receiverId,
                               const std::string& filename, long filesize,
                               const std::string& filepath);
+    /** @brief 标记文件已下载（内部实现，不加锁） */
     bool bUpdateFileDownloadedImpl(int fileId);
 
+    /** @brief 保存离线消息（内部实现，不加锁） */
     bool bSaveOfflineMessageImpl(int senderId, int receiverId,
                                   const std::string& content);
+    /** @brief 获取离线消息（内部实现，不加锁） */
     bool bGetOfflineMessagesImpl(int userId, std::vector<std::string>& results);
+    /** @brief 获取离线消息数量（内部实现，不加锁） */
     int  iGetOfflineMessageCountImpl(int userId);
+    /** @brief 删除离线消息（内部实现，不加锁） */
     bool bDeleteOfflineMessageImpl(int msgId);
 };

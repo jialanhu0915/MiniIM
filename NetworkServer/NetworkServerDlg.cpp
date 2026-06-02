@@ -21,17 +21,21 @@ extern thread_local CConnectSocket* g_pCurrentSocket;
 // CAboutDlg
 // ============================================================================
 
+/**
+ * @brief  关于对话框
+ */
 class CAboutDlg : public CDialogEx
 {
 public:
 	CAboutDlg();
-protected:
+	/** @brief MFC 数据交换（DDX） @param pDX 数据交换上下文 */
 	virtual void DoDataExchange(CDataExchange* pDX);
 	DECLARE_MESSAGE_MAP()
 };
 
 CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX) {}
 
+/** @brief MFC 数据交换（DDX） @param pDX 数据交换上下文 */
 void CAboutDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 }
@@ -59,6 +63,10 @@ END_MESSAGE_MAP()
 // 构造 / 初始化
 // ============================================================================
 
+/**
+ * @brief  构造函数，初始化对话框
+ * @param  pParent  父窗口指针（通常为 nullptr）
+ */
 CNetworkServerDlg::CNetworkServerDlg(CWnd* pParent)
 	: CDialogEx(IDD_NETWORKSERVER_DIALOG, pParent)
 {
@@ -66,11 +74,20 @@ CNetworkServerDlg::CNetworkServerDlg(CWnd* pParent)
 	m_listenSocket.m_pDlg = this;
 }
 
+/**
+ * @brief  数据交换，用于 DDX 控件绑定
+ * @param  pDX  数据交换对象
+ */
 void CNetworkServerDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST_USERS, m_userList);
 }
 
+/**
+ * @brief  对话框初始化
+ * @return BOOL 返回 TRUE
+ * @note   初始化数据库、在线用户列表，注册协议处理器
+ */
 BOOL CNetworkServerDlg::OnInitDialog() {
 	CDialogEx::OnInitDialog();
 
@@ -112,6 +129,12 @@ BOOL CNetworkServerDlg::OnInitDialog() {
 	return TRUE;
 }
 
+/**
+ * @brief  按键预处理（拦截 Enter 发送消息）
+ * @param  pMsg  消息结构体指针
+ * @return TRUE 已处理，FALSE 继续传递
+ * @note   拦截消息发送框的回车键，其他编辑框吞掉 Enter
+ */
 BOOL CNetworkServerDlg::PreTranslateMessage(MSG* pMsg) {
 	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN) {
 		// 如果焦点在消息发送框（IDC_EDIT_MSG），触发发送
@@ -127,9 +150,12 @@ BOOL CNetworkServerDlg::PreTranslateMessage(MSG* pMsg) {
 }
 
 // ============================================================================
-// ============================================================================
 // 协议处理器（你的网络层代码参考）
 // ============================================================================
+/**
+ * @brief  注册所有协议消息处理器
+ * @note   在 OnInitDialog 中调用，按类型绑定处理 lambda
+ */
 void CNetworkServerDlg::RegisterProtocolHandlers() {
 	// ========================================================================
 	  // LOGIN
@@ -495,6 +521,11 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		// TODO: 转发给 receiver
 		});
 
+	/**
+	 * @brief  处理文件响应（TODO：未实现）
+	 * @param  json  JSON 消息体
+	 * @note   TODO: 需实现转发给发送方
+	 */
 	m_dispatcher.on(MsgType::FILE_RESP, [this](const std::string& json) {
 		// TODO: 转发给 sender
 		});
@@ -559,6 +590,11 @@ std::string CNetworkServerDlg::strGetFriendListJson(int iUserId)
 // 系统消息
 // ============================================================================
 
+/**
+ * @brief  系统命令处理
+ * @param  nID    命令 ID
+ * @param  lParam 命令附加数据
+ */
 void CNetworkServerDlg::OnSysCommand(UINT nID, LPARAM lParam) {
 	if ((nID & 0xFFF0) == IDM_ABOUTBOX) {
 		CAboutDlg dlgAbout;
@@ -569,6 +605,9 @@ void CNetworkServerDlg::OnSysCommand(UINT nID, LPARAM lParam) {
 	}
 }
 
+/**
+ * @brief  绘制对话框（图标绘制）
+ */
 void CNetworkServerDlg::OnPaint() {
 	if (IsIconic()) {
 		CPaintDC dc(this);
@@ -587,17 +626,32 @@ void CNetworkServerDlg::OnPaint() {
 	}
 }
 
+/**
+ * @brief  查询拖拽图标
+ * @return HCURSOR 图标句柄
+ */
 HCURSOR CNetworkServerDlg::OnQueryDragIcon() {
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+/**
+ * @brief  静态文本控件点击（预留）
+ * @note   预留，当前为空
+ */
 void CNetworkServerDlg::OnStnClickedStaticPort() {}
+/**
+ * @brief  端口编辑框内容变化（预留）
+ * @note   预留，当前为空
+ */
 void CNetworkServerDlg::OnEnChangeEditPort() {}
 
 // ============================================================================
 // 按钮事件
 // ============================================================================
 
+/**
+ * @brief  点击"启动"按钮，开始监听端口
+ */
 void CNetworkServerDlg::OnBnClickedButtonStart() {
 	CString strPort;
 	GetDlgItemText(IDC_EDIT_PORT, strPort);
@@ -623,6 +677,9 @@ void CNetworkServerDlg::OnBnClickedButtonStart() {
 	UpdateLog(_T("[启动] 开始监听端口 ") + strPort);
 }
 
+/**
+ * @brief  点击"停止"按钮，关闭所有连接并停止监听
+ */
 void CNetworkServerDlg::OnBnClickedButtonStop() {
 	InterlockedExchange(&m_bRunning, FALSE);
 
@@ -661,6 +718,12 @@ void CNetworkServerDlg::OnBnClickedButtonStop() {
 // 公开方法
 // ============================================================================
 
+/**
+ * @brief  用户登录时更新 UI（在线用户列表）
+ * @param  userId    用户 ID
+ * @param  username  用户名
+ * @param  ip        客户端 IP 地址
+ */
 void CNetworkServerDlg::OnUserLoginUI(int userId,
 	const std::string& username,
 	const std::string& ip) {
@@ -675,6 +738,11 @@ void CNetworkServerDlg::OnUserLoginUI(int userId,
 		_T(" (") + CString(ip.c_str()) + _T(")"));
 }
 
+/**
+ * @brief  用户登出时更新 UI（从在线列表移除）
+ * @param  userId    用户 ID
+ * @param  username  用户名
+ */
 void CNetworkServerDlg::OnUserLogoutUI(int userId, const std::string& username) {
 	// 不再读任何 map —— 用户名通过参数传入（由 PostUIUpdate 携带）
 	UpdateLog(_T("[下线] ") + CString(username.c_str()));
@@ -689,6 +757,11 @@ void CNetworkServerDlg::OnUserLogoutUI(int userId, const std::string& username) 
 	}
 }
 
+/**
+ * @brief  向日志编辑框追加一行文本
+ * @param  str  要追加的日志文本
+ * @note   自动滚动到最新行
+ */
 void CNetworkServerDlg::UpdateLog(const CString& str) {
 	CString strLog;
 	GetDlgItemText(IDC_EDIT_LOG, strLog);
@@ -700,10 +773,20 @@ void CNetworkServerDlg::UpdateLog(const CString& str) {
 	GetDlgItem(IDC_EDIT_LOG)->SendMessage(EM_SCROLLCARET);
 }
 
+/**
+ * @brief  更新状态栏文本
+ * @param  text  状态文本
+ */
 void CNetworkServerDlg::UpdateStatus(const CString& text) {
 	SetDlgItemText(IDC_STATIC_STATUS, text);
 }
 
+/**
+ * @brief  派发消息到对应协议处理器
+ * @param  pSocket  来源 socket
+ * @param  msgType  消息类型
+ * @param  json     JSON 消息体
+ */
 void CNetworkServerDlg::DispatchMessage(CConnectSocket* pSocket, MsgType msgType, const std::string& json)
 {
 	// 记录日志（通过 PostMessage 安全投递到 UI 线程）
@@ -717,6 +800,12 @@ void CNetworkServerDlg::DispatchMessage(CConnectSocket* pSocket, MsgType msgType
 	m_dispatcher.dispatch(msgType, json);
 }
 
+/**
+ * @brief  向指定客户端发送消息
+ * @param  pSocket  目标 socket
+ * @param  msgType  消息类型
+ * @param  json     JSON 消息体
+ */
 void CNetworkServerDlg::SendToClient(CConnectSocket* pSocket, MsgType msgType, const std::string& json)
 {
 	if (!pSocket) return;
@@ -724,6 +813,11 @@ void CNetworkServerDlg::SendToClient(CConnectSocket* pSocket, MsgType msgType, c
 	pSocket->SendData(data.data(), static_cast<int>(data.size()));
 }
 
+/**
+ * @brief  处理客户端断开连接
+ * @param  pSocket  断开的 socket
+ * @note   从 maps 中移除用户，广播离线状态，不删除 socket（由线程自删除）
+ */
 void CNetworkServerDlg::OnClientDisconnected(CConnectSocket* pSocket)
 {
 	// 防重复清理（Stop() 和自然断开可能同时触发）
@@ -780,6 +874,15 @@ void CNetworkServerDlg::OnClientDisconnected(CConnectSocket* pSocket)
 	// 注意：不 delete pSocket！线程在 ThreadProc 返回前会 delete this
 }
 
+/**
+ * @brief  投递 UI 更新消息到主线程
+ * @param  type      更新类型
+ * @param  text      日志文本
+ * @param  userId    用户 ID
+ * @param  username  用户名
+ * @param  ip        IP 地址
+ * @note   通过 PostMessage 线程安全投递，OnUIUpdate 负责删除 pData
+ */
 void CNetworkServerDlg::PostUIUpdate(UIUpdateType type, const CString& text, int userId, const std::string& username, const std::string& ip)
 {
 	UIUpdateData* pData = new UIUpdateData;
@@ -792,6 +895,12 @@ void CNetworkServerDlg::PostUIUpdate(UIUpdateType type, const CString& text, int
 		reinterpret_cast<LPARAM>(pData));
 }
 
+/**
+ * @brief  处理 UI 更新消息（WM_USER_UPDATE_UI）
+ * @param  wParam  更新类型
+ * @param  lParam  UIUpdateData 指针
+ * @return LRESULT 返回 0
+ */
 LRESULT CNetworkServerDlg::OnUIUpdate(WPARAM wParam, LPARAM lParam)
 {
 	UIUpdateData* pData = reinterpret_cast<UIUpdateData*>(lParam);
@@ -815,6 +924,10 @@ LRESULT CNetworkServerDlg::OnUIUpdate(WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+/**
+ * @brief  对话框销毁处理
+ * @note   停止所有监听和连接，关闭数据库
+ */
 void CNetworkServerDlg::OnDestroy()
 {
 	if (InterlockedCompareExchange(&m_bRunning, TRUE, TRUE) == TRUE) {
