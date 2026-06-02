@@ -2,6 +2,7 @@
 # Set default behavior to automatically normalize line endings.
 ###############################################################################
 * text=auto
+.gitattributes  text eol=lf
 
 ###############################################################################
 # Force CRLF for C++ source files (required by MSVC on Windows)
