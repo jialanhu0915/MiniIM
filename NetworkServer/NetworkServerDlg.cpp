@@ -279,6 +279,7 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		int senderId = JsonGetInt(json, "sender_id");
 		int receiverId = JsonGetInt(json, "receiver_id");
 		std::string content = JsonGetString(json, "content");
+		std::string timestamp = JsonGetString(json, "timestamp");
 
 		// 保存到数据库（m_csDb 自动加锁）
 		m_dbWrapper.bSaveMessage(senderId, receiverId, content);
@@ -292,10 +293,11 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		}
 
 		if (pReceiver) {
-			// 在线：直接转发
+			// 在线：直接转发（透传 timestamp）
 			std::string forward = JsonMakeObject({
 				JsonSetInt("sender_id", senderId),
-				JsonSetString("content", content)
+				JsonSetString("content", content),
+				JsonSetString("timestamp", timestamp)
 				});
 			SendToClient(pReceiver, MsgType::TEXT, forward);
 		}
@@ -304,7 +306,8 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 			std::string offlineMsg = JsonMakeObject({
 				JsonSetString("type", "text"),
 				JsonSetInt("sender_id", senderId),
-				JsonSetString("content", content)
+				JsonSetString("content", content),
+				JsonSetString("timestamp", timestamp)
 				});
 			m_dbWrapper.bSaveOfflineMessage(senderId, receiverId, offlineMsg);
 		}
@@ -317,6 +320,7 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 	m_dispatcher.on(MsgType::GROUP_TEXT, [this](const std::string& json) {
 		int senderId = JsonGetInt(json, "sender_id");
 		std::string content = JsonGetString(json, "content");
+		std::string timestamp = JsonGetString(json, "timestamp");
 
 		// 广播给所有在线用户（除发送者外）
 		std::vector<CConnectSocket*> targets;
@@ -331,7 +335,8 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 
 		std::string broadcast = JsonMakeObject({
 			JsonSetInt("sender_id", senderId),
-			JsonSetString("content", content)
+			JsonSetString("content", content),
+			JsonSetString("timestamp", timestamp)
 			});
 		for (auto* target : targets) {
 			SendToClient(target, MsgType::GROUP_TEXT, broadcast);
@@ -539,13 +544,17 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 		int limit = JsonGetInt(json, "limit");
 		if (limit <= 0 || limit > 100) limit = 20;
 
-		std::vector<std::string> records;
+		std::vector<SQLiteWrapper::MessageRecord> records;
 		m_dbWrapper.bGetMessages(userId, otherUserId, limit, records);
 
-		// 构造 JSON 数组返回
+		// 构造 JSON 数组返回（每条: {"sender_id", "content", "timestamp"}）
 		std::string resp = "{\"messages\":[";
 		for (size_t i = 0; i < records.size(); ++i) {
-			resp += "\"" + records[i] + "\"";
+			resp += JsonMakeObject({
+				JsonSetInt("sender_id", records[i].senderId),
+				JsonSetString("content", records[i].content),
+				JsonSetString("timestamp", records[i].timestamp)
+				});
 			if (i != records.size() - 1) resp += ",";
 		}
 		resp += "]}";

@@ -185,39 +185,28 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 
 		});
 
-	m_dispatcher.on(MsgType::TEXT, [this](const std::string& json) {
+	// 共享 helper：按 senderId 解析展示名（自己 / 好友 / 未知用户）
+	auto resolveName = [this](int senderId) -> std::string {
+		if (senderId == m_userId) return "我";
+		auto it = m_friendMap.find(senderId);
+		if (it != m_friendMap.end()) return it->second.username;
+		return "用户" + std::to_string(senderId);
+	};
+
+	m_dispatcher.on(MsgType::TEXT, [this, resolveName](const std::string& json) {
 		int senderId = JsonGetInt(json, "sender_id");
 		std::string content = JsonGetString(json, "content");
 		std::string timestamp = JsonGetString(json, "timestamp");
 
-		// 1) 优先从好友表里查
-		// 2) 查不到就用 JSON 自带的 username 字段
-		// 3) 都没有就显示 ID
-		std::string senderName = JsonGetString(json, "username");
-		auto it = m_friendMap.find(senderId);
-		if (it != m_friendMap.end()) {
-			senderName = it->second.username;
-		} else if (senderName.empty()) {
-			senderName = "用户" + std::to_string(senderId);
-		}
-
-		OnMessageReceived(senderName, content, timestamp);
+		OnMessageReceived(resolveName(senderId), content, timestamp);
 		});
 
-	m_dispatcher.on(MsgType::GROUP_TEXT, [this](const std::string& json) {
+	m_dispatcher.on(MsgType::GROUP_TEXT, [this, resolveName](const std::string& json) {
 		int senderId = JsonGetInt(json, "sender_id");
 		std::string content = JsonGetString(json, "content");
 		std::string timestamp = JsonGetString(json, "timestamp");
 
-		std::string senderName = JsonGetString(json, "username");
-		auto it = m_friendMap.find(senderId);
-		if (it != m_friendMap.end()) {
-			senderName = it->second.username;
-		} else if (senderName.empty()) {
-			senderName = "用户" + std::to_string(senderId);
-		}
-
-		OnMessageReceived(senderName, content, timestamp);
+		OnMessageReceived(resolveName(senderId), content, timestamp);
 		});
 
 	m_dispatcher.on(MsgType::STATUS_ONLINE, [this](const std::string& json) {
@@ -256,11 +245,30 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 		// TODO: 根据响应决定是否开始下载
 		});
 
-	m_dispatcher.on(MsgType::HISTORY, [this](const std::string& json) {
+	m_dispatcher.on(MsgType::HISTORY, [this, resolveName](const std::string& json) {
 		auto arr = JsonGetArray(json, "messages");
+		if (!arr.empty()) {
+			AppendChatMessage(_T("[系统] 历史消息 ") +
+				CString(std::to_string(arr.size()).c_str()) + _T(" 条"));
+		}
 		for (const auto& item : arr) {
+			int senderId = JsonGetInt(item, "sender_id");
 			std::string content = JsonGetString(item, "content");
-			AppendChatMessage(CString(content.c_str()));
+			std::string timestamp = JsonGetString(item, "timestamp");
+
+			// 时间戳只取 HH:MM:SS 部分（DB 返回的格式是 "YYYY-MM-DD HH:MM:SS"）
+			std::string shortTime = timestamp;
+			auto sp = timestamp.find(' ');
+			if (sp != std::string::npos) {
+				shortTime = timestamp.substr(sp + 1);  // "HH:MM:SS"
+			}
+
+			CString line;
+			line.Format(_T("[%s] %s: %s"),
+				CString(shortTime.c_str()),
+				CString(resolveName(senderId).c_str()),
+				CString(content.c_str()));
+			AppendChatMessage(line);
 		}
 		});
 

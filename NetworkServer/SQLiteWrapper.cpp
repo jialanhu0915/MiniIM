@@ -462,7 +462,7 @@ bool SQLiteWrapper::bSaveMessageImpl(int senderId, int receiverId,
  * @note 线程安全，内部加 m_csDb 锁
  */
 bool SQLiteWrapper::bGetMessages(int userId, int otherUserId, int limit,
-                                  std::vector<std::string>& results) {
+                                  std::vector<MessageRecord>& results) {
     CSingleLock lock(&m_csDb, TRUE);
     return bGetMessagesImpl(userId, otherUserId, limit, results);
 }
@@ -476,7 +476,7 @@ bool SQLiteWrapper::bGetMessages(int userId, int otherUserId, int limit,
  * @return 成功返回 true
  */
 bool SQLiteWrapper::bGetMessagesImpl(int userId, int otherUserId, int limit,
-                                     std::vector<std::string>& results) {
+                                     std::vector<MessageRecord>& results) {
     StmtGuard stmt;
     if (sqlite3_prepare_v2(m_db,
             "SELECT sender_id, receiver_id, content, timestamp "
@@ -496,17 +496,14 @@ bool SQLiteWrapper::bGetMessagesImpl(int userId, int otherUserId, int limit,
     sqlite3_bind_int(stmt.get(), 5, limit);
 
     while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-        int         sender    = sqlite3_column_int(stmt.get(), 0);
-        int         receiver  = sqlite3_column_int(stmt.get(), 1);
-        const char* content   = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
-        const char* timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 3));
-
-        char buf[1024];
-        snprintf(buf, sizeof(buf), "[%s] %d -> %d: %s",
-                 timestamp ? timestamp : "",
-                 sender, receiver,
-                 content ? content : "");
-        results.push_back(buf);
+        MessageRecord rec;
+        rec.senderId   = sqlite3_column_int(stmt.get(), 0);
+        rec.receiverId = sqlite3_column_int(stmt.get(), 1);
+        const char* pContent   = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
+        const char* pTimestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 3));
+        rec.content   = pContent   ? pContent   : "";
+        rec.timestamp = pTimestamp ? pTimestamp : "";
+        results.push_back(std::move(rec));
     }
 
     return true;

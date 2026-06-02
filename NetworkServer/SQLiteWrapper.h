@@ -103,15 +103,25 @@ public:
     bool bSaveMessage(int senderId, int receiverId, const std::string& content);
 
     /**
+     * @brief   聊天消息结构体（未格式化的原始数据，由调用方按需渲染）
+     */
+    struct MessageRecord {
+        int         senderId;    ///< 发送者用户 ID
+        int         receiverId;  ///< 接收者用户 ID
+        std::string content;     ///< 消息内容
+        std::string timestamp;   ///< 时间戳（DB 原样返回的字符串）
+    };
+
+    /**
      * @brief       获取两个用户之间的聊天记录
      * @param[in]   userId       当前用户ID
      * @param[in]   otherUserId  对方用户ID
      * @param[in]   limit        返回消息数量上限
-     * @param[out]  results      存储查询结果（格式：[时间] sender->receiver: content）
+     * @param[out]  results      存储查询结果（每条为 MessageRecord）
      * @return      成功返回true，失败返回false
      */
     bool bGetMessages(int userId, int otherUserId, int limit,
-                      std::vector<std::string>& results);
+                      std::vector<MessageRecord>& results);
 
     /**
      * @brief       将指定用户之间的未读消息标记为已读
@@ -242,7 +252,7 @@ private:
     bool bSaveMessageImpl(int senderId, int receiverId, const std::string& content);
     /** @brief 获取聊天记录（内部实现，不加锁） */
     bool bGetMessagesImpl(int userId, int otherUserId, int limit,
-                           std::vector<std::string>& results);
+                           std::vector<MessageRecord>& results);
     /** @brief 标记消息为已读（内部实现，不加锁） */
     bool bMarkMessagesAsReadImpl(int senderId, int receiverId);
     /** @brief 获取未读消息数量（内部实现，不加锁） */
