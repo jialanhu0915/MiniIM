@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 
 // 从 JSON 中提取字符串值：{"key":"value"} → "value"

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file   NetworkServerDlg.h
  * @brief  即时通讯服务端 - 主界面（多线程版）
  * @author Yan Runxin

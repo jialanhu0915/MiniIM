@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -27,10 +27,10 @@ void exampleFunction(int param1, const std::string& param2);
 ### 示例（正确 vs 错误）
 
 ```cpp
-// WRONG — natural language single-line comment, lacks structure
+// WRONG -- natural language single-line comment, lacks structure
 // This is the function to send messages, need to check if user is logged in first
 
-// CORRECT — Doxygen style
+// CORRECT -- Doxygen style
 /**
  * @brief  Send a text message to the selected friend or group chat
  * @param  strMsg  Message content (UTF-8), timestamp constructed by sender
@@ -90,7 +90,7 @@ msbuild ComputerNetworkProgramming.sln /p:Configuration=Debug /p:Platform=x64
 ### 收发模式（RecvBuffer + ProtocolDispatcher）
 
 ```cpp
-// 接收 — RecvBuffer 自动处理粘包/半包
+// 接收 -- RecvBuffer 自动处理粘包/半包
 char buf[4096];
 int n = socket.Receive(buf, sizeof(buf));
 m_recvBuf.append(buf, n);
@@ -107,7 +107,7 @@ socket.Send(data.data(), static_cast<int>(data.size()));
 
 ### JSON 工具（JsonUtils.h）
 
-`JsonGetString(json, key)` / `JsonGetInt(json, key)` / `JsonSetString(key, val)` / `JsonSetInt(key, val)` / `JsonMakeObject({...})` / `JsonGetArray(json, key)` — 手写实现，无外部依赖。
+`JsonGetString(json, key)` / `JsonGetInt(json, key)` / `JsonSetString(key, val)` / `JsonSetInt(key, val)` / `JsonMakeObject({...})` / `JsonGetArray(json, key)` -- 手写实现，无外部依赖。
 
 ## 服务端架构（BSD Socket + AfxBeginThread 多线程）
 
@@ -123,11 +123,11 @@ UI 更新通过 PostMessage(WM_USER_UPDATE_UI) 投递到 UI 线程
 ```
 
 `NetworkServerDlg` 持有：
-- `m_listenSocket`（CListenSocket）— 监听 socket + accept 线程
-- `m_connectSockets` — 当前所有客户端连接
-- `m_userIdToSocket` / `m_socketToUserId` — userId ↔ socket 映射
-- `m_userIdToName` — userId → 用户名
-- `m_dbWrapper`（SQLiteWrapper）— DB 操作
+- `m_listenSocket`（CListenSocket）-- 监听 socket + accept 线程
+- `m_connectSockets` -- 当前所有客户端连接
+- `m_userIdToSocket` / `m_socketToUserId` -- userId ↔ socket 映射
+- `m_userIdToName` -- userId → 用户名
+- `m_dbWrapper`（SQLiteWrapper）-- DB 操作
 
 每客户端对应一个 `CConnectSocket` 实例 + 一个 `CWinThread` 线程，线程在 `RecvLoop` 中自行 `delete this`。
 
@@ -137,8 +137,8 @@ thread-local 变量 `g_pCurrentSocket`（文件作用域）传递当前处理的
 
 服务端存在**两把独立的锁**，各自保护不同资源：
 
-- `m_csData`（`NetworkServerDlg`）— 保护内存 map / socket 列表
-- `m_csDb`（`SQLiteWrapper`）— 保护 sqlite3 句柄
+- `m_csData`（`NetworkServerDlg`）-- 保护内存 map / socket 列表
+- `m_csDb`（`SQLiteWrapper`）-- 保护 sqlite3 句柄
 
 **规则：持有 `m_csData` 期间绝不调用 `m_dbWrapper.*`**（会导致嵌套锁死锁）。正确模式：
 
@@ -166,37 +166,67 @@ UI 线程 ── CAsyncSocket 异步回调 ── RecvBuffer ── ProtocolDisp
 ```
 
 `CNetworkClientDlg` 持有：
-- `m_connectSocket`（CAsyncSocket）— 到服务端的连接
-- `m_recvBuf`（RecvBuffer）— 接收缓冲区
-- `m_dispatcher`（ProtocolDispatcher）— 消息分发器
-- `m_friendMap`（unordered_map）— userId → FriendInfo
-- `m_userId` / `m_username` — 登录状态
-- `m_selectedFriendId` — 当前选中的好友（0 = 全体群聊）
-- `m_bConnecting` — 防止重复点击连接
+- `m_connectSocket`（CAsyncSocket）-- 到服务端的连接
+- `m_recvBuf`（RecvBuffer）-- 接收缓冲区
+- `m_dispatcher`（ProtocolDispatcher）-- 消息分发器
+- `m_friendMap`（unordered_map）-- userId → FriendInfo
+- `m_userId` / `m_username` -- 登录状态
+- `m_selectedFriendId` -- 当前选中的好友（0 = 全体群聊）
+- `m_bConnecting` -- 防止重复点击连接
 
 ## 关键坑点
 
-### WSL 写入 Windows 文件系统的编码
+### WSL 写入 Windows 文件系统的编码（高频踩坑，必读）
 
 在 `/mnt/b/`（Windows NTFS 分区）下编辑文件时：
-- WSL 默认写入 UTF-8 without BOM + LF
-- VS 期望 UTF-8 with BOM 或 GBK + CRLF
-- 含中文注释的文件可能报 C4819 或类定义解析失败
+- WSL 默认写入 **UTF-8 without BOM + LF**
+- MSVC 期望 **UTF-8 with BOM + CRLF**（MFC 头文件尤其严格）
+- 含中文注释的文件**只要缺 BOM** 就会出现 C4819 警告甚至「类定义解析失败」级联报 100+ 错误
 
-**解法**：在 VS 中打开文件 → 文件 → 高级保存选项 → UTF-8 带签名 (65001)
+**所有 .h/.cpp 必须满足**：
+- 首三字节为 `EF BB BF`（UTF-8 BOM）
+- 行尾为 `CRLF`（`0D 0A`），不是 LF
 
-**高危字符**：em-dash（`—`，U+2014，UTF-8 `E2 80 94`）在 GBK 解析下会错位，后续 ASCII 标识符全部解析错误。应避免在代码注释中使用。
+**批量修复命令**（WSL 端，Python 3）：
+
+```python
+import os
+BOM = b'\xef\xbb\xbf'
+files = [
+    'Common/JsonUtils.h', 'Common/Protocol.h', 'Common/FtpHelper.h',
+    'NetworkClient/NetworkClient.h', 'NetworkClient/NetworkClient.cpp',
+    'NetworkClient/NetworkClientDlg.h', 'NetworkClient/NetworkClientDlg.cpp',
+    'NetworkClient/CConnectSocket.h', 'NetworkClient/CConnectSocket.cpp',
+    'NetworkClient/CAddFriendDlg.h', 'NetworkClient/CAddFriendDlg.cpp',
+    'NetworkServer/NetworkServer.h', 'NetworkServer/NetworkServer.cpp',
+    'NetworkServer/NetworkServerDlg.h', 'NetworkServer/NetworkServerDlg.cpp',
+    'NetworkServer/SQLiteWrapper.h', 'NetworkServer/SQLiteWrapper.cpp',
+    'NetworkServer/CConnectSocket.h', 'NetworkServer/CConnectSocket.cpp',
+    'NetworkServer/CListenSocket.h', 'NetworkServer/CListenSocket.cpp',
+]
+for p in files:
+    with open(p, 'rb') as f: b = f.read()
+    if b.startswith(BOM): b = b[3:]
+    b = b.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
+    with open(p, 'wb') as f: f.write(BOM + b)
+```
+
+**验证**：`file <path>` 应输出 `UTF-8 (with BOM) text, with CRLF line terminators`。
+
+**高危字符**：em-dash（`--`，U+2014，UTF-8 `E2 80 94`）和 en-dash（`-`）在 GBK 解析下会错位，后续 ASCII 标识符全部解析错误。**禁止在代码注释/字符串字面量中使用**。改用 ` - `、` -- ` 或中文标点「、」「（」「）」。
+
+**经验教训**：补 Doxygen 时若 agent 一次改太多文件，最容易出问题的是 BOM/CRLF ---- **每次写完中文注释的 .h 都要立即 `file` 检查**。
 
 ### 服务端 JSON 构建（好友列表格式）
 
 `JsonSetString/JsonSetInt` 返回**裸片段**，不含外层 `{}`：
 
 ```cpp
-// 错误 — 每个字段没有外层括号
+// 错误 -- 每个字段没有外层括号
 result = JsonSetInt("user_id", 2) + "," + JsonSetString("username", "Bob");
 // -> "user_id":2,"username":"Bob"  （缺少 {}）
 
-// 正确 — 用 JsonMakeObject 包裹
+// 正确 -- 用 JsonMakeObject 包裹
 result = JsonMakeObject({
     JsonSetInt("user_id", 2),
     JsonSetString("username", "Bob"),
@@ -209,15 +239,15 @@ result = JsonMakeObject({
 
 SQLite，`chat_history.db`（自动创建）。表结构由 `SQLiteWrapper::bOpenDb` 初始化：
 
-- `users` — id, username
-- `messages` — id, sender_id, receiver_id, content, timestamp, is_read
-- `friends` — user_id, friend_id, created_at
-- `file_records` — id, sender_id, receiver_id, filename, filesize, filepath, downloaded
-- `offline_messages` — id, sender_id, receiver_id, content, created_at, is_read
+- `users` -- id, username
+- `messages` -- id, sender_id, receiver_id, content, timestamp, is_read
+- `friends` -- user_id, friend_id, created_at
+- `file_records` -- id, sender_id, receiver_id, filename, filesize, filepath, downloaded
+- `offline_messages` -- id, sender_id, receiver_id, content, created_at, is_read
 
 所有 DB 操作经 `SQLiteWrapper`，内部加 `m_csDb` 锁保护 sqlite3 句柄。
 
 ## 学习资料
 
-- `LEARNING_GUIDE.md` — 分里程碑学习路线（里程碑 4 已完成）
-- `KNOWLEDGE_BASE.md` — TCP 分帧、粘包/半包、字节序、CAsyncSocket 异步模型详解
+- `LEARNING_GUIDE.md` -- 分里程碑学习路线（里程碑 4 已完成）
+- `KNOWLEDGE_BASE.md` -- TCP 分帧、粘包/半包、字节序、CAsyncSocket 异步模型详解

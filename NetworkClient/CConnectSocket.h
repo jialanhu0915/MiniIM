@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <afxsock.h>
 
 class CNetworkClientDlg;
