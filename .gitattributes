@@ -4,6 +4,16 @@
 * text=auto
 
 ###############################################################################
+# Force CRLF for C++ source files (required by MSVC on Windows)
+# Git would otherwise normalize CRLF to LF on commit, breaking MSVC parsing
+# of files containing Chinese characters in comments.
+###############################################################################
+*.h    text eol=crlf
+*.cpp  text eol=crlf
+*.c    text eol=crlf
+*.hpp  text eol=crlf
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by
