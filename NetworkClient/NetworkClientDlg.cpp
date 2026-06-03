@@ -62,6 +62,7 @@ BEGIN_MESSAGE_MAP(CNetworkClientDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_WM_CTLCOLOR()
 	ON_EN_CHANGE(IDC_EDIT_PORT, &CNetworkClientDlg::OnEnChangeEditPort)
 	ON_BN_CLICKED(IDC_BUTTON_CONNECT, &CNetworkClientDlg::OnBnClickedButtonConnect)
 	ON_BN_CLICKED(IDC_BUTTON_DISCONNECT, &CNetworkClientDlg::OnBnClickedButtonDisconnect)
@@ -128,6 +129,21 @@ BOOL CNetworkClientDlg::OnInitDialog() {
 	GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(FALSE);
 	m_btnSendFile.EnableWindow(FALSE);
 	SetDlgItemText(IDC_STATIC_STATUS, _T("未连接"));
+
+	// ---- 按钮美化：扁平 + 柔和配色（Material 300 浅色板）----
+	// 关键：m_bDontUseWinXPTheme = TRUE 让 CMFCButton 走自绘，SetFaceColor 才生效
+	m_btnAddFriend.m_bDontUseWinXPTheme = TRUE;
+	m_btnAddFriend.m_bDrawFocus = FALSE;
+	m_btnAddFriend.SetFaceColor(RGB(100, 181, 246), RGB(60, 140, 200));   // 柔和蓝
+	m_btnAddFriend.SetTextColor(RGB(255, 255, 255));
+	m_btnRemoveFriend.m_bDontUseWinXPTheme = TRUE;
+	m_btnRemoveFriend.m_bDrawFocus = FALSE;
+	m_btnRemoveFriend.SetFaceColor(RGB(229, 115, 115), RGB(200, 90, 90)); // 柔和红
+	m_btnRemoveFriend.SetTextColor(RGB(255, 255, 255));
+	m_btnSendFile.m_bDontUseWinXPTheme = TRUE;
+	m_btnSendFile.m_bDrawFocus = FALSE;
+	m_btnSendFile.SetFaceColor(RGB(129, 199, 132), RGB(90, 165, 95));     // 柔和绿
+	m_btnSendFile.SetTextColor(RGB(255, 255, 255));
 
 	// ---- 注册协议处理器（示例） ----
 	RegisterProtocolHandlers();
@@ -448,6 +464,30 @@ void CNetworkClientDlg::OnPaint() {
  */
 HCURSOR CNetworkClientDlg::OnQueryDragIcon() {
 	return static_cast<HCURSOR>(m_hIcon);
+}
+
+/**
+ * @brief  控件颜色设置（让静态标签背景透明，露出对话框底色）
+ * @param  pDC       设备上下文[in]
+ * @param  pWnd      控件指针[in]
+ * @param  nCtlColor 控件类型[in]
+ * @return 背景画刷句柄
+ * @note   1) 静态标签透明；2) IDC_STATIC_STATUS 走默认 brush（动态变化时需擦背景）
+ *         3) 编辑框/列表框/对话框走默认，避免悬停变黑
+ */
+HBRUSH CNetworkClientDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
+	if (nCtlColor == CTLCOLOR_STATIC) {
+		// 状态文字会动态变化（未连接/已连接/已登录 xxx），
+		// 若返回 NULL_BRUSH 会导致旧文字残影与新文字重叠
+		if (pWnd->GetDlgCtrlID() == IDC_STATIC_STATUS) {
+			return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
+		}
+		// 其他静态标签（如"服务器IP:"、"好友列表"）走透明
+		pDC->SetBkMode(TRANSPARENT);
+		return (HBRUSH)GetStockObject(NULL_BRUSH);
+	}
+	// 编辑框、列表框、对话框等走默认行为（保留正常背景色）
+	return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
 }
 
 // ============================================================================

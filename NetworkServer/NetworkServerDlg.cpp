@@ -51,6 +51,7 @@ BEGIN_MESSAGE_MAP(CNetworkServerDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_WM_CTLCOLOR()
 	ON_STN_CLICKED(IDC_STATIC_PORT, &CNetworkServerDlg::OnStnClickedStaticPort)
 	ON_EN_CHANGE(IDC_EDIT_PORT, &CNetworkServerDlg::OnEnChangeEditPort)
 	ON_BN_CLICKED(IDC_BUTTON_START, &CNetworkServerDlg::OnBnClickedButtonStart)
@@ -81,6 +82,8 @@ CNetworkServerDlg::CNetworkServerDlg(CWnd* pParent)
 void CNetworkServerDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST_USERS, m_userList);
+	DDX_Control(pDX, IDC_BUTTON_START, m_btnStart);
+	DDX_Control(pDX, IDC_BUTTON_STOP, m_btnStop);
 }
 
 /**
@@ -106,8 +109,19 @@ BOOL CNetworkServerDlg::OnInitDialog() {
 	SetIcon(m_hIcon, FALSE);
 
 	// ---- 初始状态 ----
-	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
+	m_btnStop.EnableWindow(FALSE);
 	SetDlgItemText(IDC_STATIC_STATUS, _T("空闲"));
+
+	// ---- 按钮美化：扁平 + 柔和配色（Material 300 浅色板）----
+	// 关键：m_bDontUseWinXPTheme = TRUE 让 CMFCButton 走自绘，SetFaceColor 才生效
+	m_btnStart.m_bDontUseWinXPTheme = TRUE;
+	m_btnStart.m_bDrawFocus = FALSE;
+	m_btnStart.SetFaceColor(RGB(129, 199, 132), RGB(90, 165, 95));   // 柔和绿：启动
+	m_btnStart.SetTextColor(RGB(255, 255, 255));
+	m_btnStop.m_bDontUseWinXPTheme = TRUE;
+	m_btnStop.m_bDrawFocus = FALSE;
+	m_btnStop.SetFaceColor(RGB(229, 115, 115), RGB(200, 90, 90));    // 柔和红：停止
+	m_btnStop.SetTextColor(RGB(255, 255, 255));
 
 	// ---- 打开数据库 ----
 	try {
@@ -672,6 +686,29 @@ HCURSOR CNetworkServerDlg::OnQueryDragIcon() {
 }
 
 /**
+ * @brief  控件颜色设置（让静态标签背景透明，露出对话框底色）
+ * @param  pDC       设备上下文[in]
+ * @param  pWnd      控件指针[in]
+ * @param  nCtlColor 控件类型[in]
+ * @return 背景画刷句柄
+ * @note   1) 静态标签透明；2) IDC_STATIC_STATUS 走默认 brush（动态变化时需擦背景）
+ *         3) 编辑框/列表框/对话框走默认，避免悬停变黑
+ */
+HBRUSH CNetworkServerDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
+	if (nCtlColor == CTLCOLOR_STATIC) {
+		// 状态文字会动态变化（空闲/正在监听...），不能给 NULL_BRUSH（否则旧文字残影）
+		if (pWnd->GetDlgCtrlID() == IDC_STATIC_STATUS) {
+			return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
+		}
+		// 其他静态标签（如"端口:"、"在线用户"）走透明
+		pDC->SetBkMode(TRANSPARENT);
+		return (HBRUSH)GetStockObject(NULL_BRUSH);
+	}
+	// 编辑框、列表框、对话框等走默认行为
+	return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
+}
+
+/**
  * @brief  静态文本控件点击（预留）
  * @note   预留，当前为空
  */
@@ -717,9 +754,9 @@ void CNetworkServerDlg::OnBnClickedButtonStart() {
 	}
 
 	UpdateStatus(_T("正在监听..."));
-	GetDlgItem(IDC_BUTTON_START)->EnableWindow(FALSE);
+	m_btnStart.EnableWindow(FALSE);
 	GetDlgItem(IDC_EDIT_PORT)->EnableWindow(FALSE);
-	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
+	m_btnStop.EnableWindow(TRUE);
 	UpdateLog(_T("[启动] 开始监听端口 ") + strPort);
 }
 
@@ -755,8 +792,8 @@ void CNetworkServerDlg::OnBnClickedButtonStop() {
 
 	m_userList.DeleteAllItems();
 	UpdateStatus(_T("空闲"));
-	GetDlgItem(IDC_BUTTON_START)->EnableWindow(TRUE);
-	GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
+	m_btnStart.EnableWindow(TRUE);
+	m_btnStop.EnableWindow(FALSE);
 	GetDlgItem(IDC_EDIT_PORT)->EnableWindow(TRUE);
 	UpdateLog(_T("[停止] 已停止监听"));
 }

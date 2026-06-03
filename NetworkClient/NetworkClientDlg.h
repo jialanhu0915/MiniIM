@@ -25,6 +25,7 @@
 #pragma once
 #include "CConnectSocket.h"
 #include "../Common/Protocol.h"
+#include <afxbutton.h>   // CMFCButton (MFC Feature Pack, flat Office-style buttons)
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -66,6 +67,14 @@ protected:
     afx_msg void OnPaint();
     /** @brief 查询拖拽图标 @return HCURSOR 图标句柄 */
     afx_msg HCURSOR OnQueryDragIcon();
+    /**
+     * @brief  控件颜色设置（让标签背景透明，露出对话框底色）
+     * @param  pDC       设备上下文[in]
+     * @param  pWnd      控件指针[in]
+     * @param  nCtlColor 控件类型[in]
+     * @return 背景画刷句柄
+     */
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
     /** @brief 按键预处理（拦截 Enter 发送消息） @param pMsg 消息结构体 @return TRUE 已处理，FALSE 继续传递 */
     virtual BOOL PreTranslateMessage(MSG* pMsg);
 
@@ -171,14 +180,14 @@ private:
     CEdit   m_editUsername;      // 用户名输入
 
     // ---- 好友列表 ----
-    CListBox m_friendList;           ///< 好友列表框
-    CButton  m_btnAddFriend;        ///< 添加好友按钮
-    CButton  m_btnRemoveFriend;     ///< 删除好友按钮
+    CListBox   m_friendList;         ///< 好友列表框
+    CMFCButton m_btnAddFriend;       ///< 添加好友按钮（Office 扁平风）
+    CMFCButton m_btnRemoveFriend;    ///< 删除好友按钮（Office 扁平风）
 
     // ---- 聊天区（复用 IDC_EDIT_LOG，m_chatDisplay 字段已删除）----
 
     // ---- 文件传输 ----
-    CButton m_btnSendFile;           ///< 发送文件按钮
+    CMFCButton m_btnSendFile;        ///< 发送文件按钮（Office 扁平风）
 
     // ---- 数据 ----
     std::unordered_map<int, FriendInfo> m_friendMap;  ///< userId 到好友信息映射

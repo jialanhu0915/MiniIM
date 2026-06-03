@@ -12,6 +12,7 @@
 #include "CFtpListenSocket.h"
 #include "SQLiteWrapper.h"
 #include "../Common/Protocol.h"
+#include <afxbutton.h>   // CMFCButton (MFC Feature Pack, flat Office-style buttons)
 #include <string>
 #include <unordered_map>
 
@@ -183,6 +184,17 @@ private:
 	 */
 	void RegisterProtocolHandlers();
 
-	CListCtrl m_userList;   ///< 用户列表控件（显示在线用户）
-	HICON     m_hIcon;       ///< 对话框图标句柄
+	/**
+	 * @brief  控件颜色设置（让静态标签背景透明）
+	 * @param  pDC       设备上下文[in]
+	 * @param  pWnd      控件指针[in]
+	 * @param  nCtlColor 控件类型[in]
+	 * @return 背景画刷句柄
+	 */
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+
+	CListCtrl   m_userList;     ///< 用户列表控件（显示在线用户）
+	CMFCButton  m_btnStart;     ///< 启动监听按钮（柔和绿，Office 扁平风）
+	CMFCButton  m_btnStop;      ///< 停止监听按钮（柔和红，Office 扁平风）
+	HICON       m_hIcon;        ///< 对话框图标句柄
 };
