@@ -193,6 +193,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="CConnectSocket.h" />
+    <ClInclude Include="CFtpListenSocket.h" />
+    <ClInclude Include="CFtpSession.h" />
     <ClInclude Include="CListenSocket.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="NetworkServer.h" />
@@ -204,6 +206,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CConnectSocket.cpp" />
+    <ClCompile Include="CFtpListenSocket.cpp" />
+    <ClCompile Include="CFtpSession.cpp" />
     <ClCompile Include="CListenSocket.cpp" />
     <ClCompile Include="NetworkServer.cpp" />
     <ClCompile Include="NetworkServerDlg.cpp" />

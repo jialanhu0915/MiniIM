@@ -9,6 +9,7 @@
 
 #include "CConnectSocket.h"
 #include "CListenSocket.h"
+#include "CFtpListenSocket.h"
 #include "SQLiteWrapper.h"
 #include "../Common/Protocol.h"
 #include <string>
@@ -152,6 +153,7 @@ public:
 	afx_msg void OnDestroy();
 
 	CListenSocket        m_listenSocket;         ///< 监听socket，管理客户端接入
+	CFtpListenSocket     m_ftpListenSocket;       ///< FTP 监听 socket（端口 2121），用于文件传输中转
 	std::vector<CConnectSocket*> m_connectSockets;  ///< 当前所有客户端连接
 	SQLiteWrapper        m_dbWrapper;             ///< SQLite数据库封装
 

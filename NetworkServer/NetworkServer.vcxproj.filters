@@ -42,6 +42,12 @@
     <ClInclude Include="CConnectSocket.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="CFtpSession.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CFtpListenSocket.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NetworkServer.cpp">
@@ -60,6 +66,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="CListenSocket.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CFtpSession.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CFtpListenSocket.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

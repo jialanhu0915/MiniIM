@@ -522,17 +522,45 @@ void CNetworkServerDlg::RegisterProtocolHandlers() {
 
 		});
 
+	/**
+	 * @brief  转发文件请求：A 上传完文件到 FTP 后，通知 B 来下载
+	 * @param  json  JSON 消息体 {sender_id, receiver_id, filename, filesize, ftp_path}
+	 * @note   接收方不在线时不存离线（FTP 文件已上传，但接收方要主动发请求才会下载，
+	 *         而我们的协议是单向通知）。这里仅简单转发。
+	 */
 	m_dispatcher.on(MsgType::FILE_REQUEST, [this](const std::string& json) {
-		// TODO: 转发给 receiver
+		int receiverId = JsonGetInt(json, "receiver_id");
+
+		CConnectSocket* pReceiver = nullptr;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			auto it = m_userIdToSocket.find(receiverId);
+			if (it != m_userIdToSocket.end()) pReceiver = it->second;
+		}
+
+		if (pReceiver) {
+			SendToClient(pReceiver, MsgType::FILE_REQUEST, json);
+		}
+		// 接收方离线：不存离线（FTP 文件已上传，存了也没法主动推）
 		});
 
 	/**
-	 * @brief  处理文件响应（TODO：未实现）
-	 * @param  json  JSON 消息体
-	 * @note   TODO: 需实现转发给发送方
+	 * @brief  转发文件响应：B 接受/拒绝后，把结果回给 A
+	 * @param  json  JSON 消息体 {sender_id(B), receiver_id(A), filename, accepted}
 	 */
 	m_dispatcher.on(MsgType::FILE_RESP, [this](const std::string& json) {
-		// TODO: 转发给 sender
+		int receiverId = JsonGetInt(json, "receiver_id");
+
+		CConnectSocket* pReceiver = nullptr;
+		{
+			CSingleLock lock(&m_csData, TRUE);
+			auto it = m_userIdToSocket.find(receiverId);
+			if (it != m_userIdToSocket.end()) pReceiver = it->second;
+		}
+
+		if (pReceiver) {
+			SendToClient(pReceiver, MsgType::FILE_RESP, json);
+		}
 		});
 
 	m_dispatcher.on(MsgType::HISTORY, [this](const std::string& json) {
@@ -679,6 +707,15 @@ void CNetworkServerDlg::OnBnClickedButtonStart() {
 		return;
 	}
 
+	// 同时启动 FTP 监听（端口 2121）
+	// 根目录与 chat_history.db 同一目录（exe 工作目录）下的 FtpRoot/ 子目录
+	// 启动时若不存在会自动创建
+	if (!m_ftpListenSocket.Start(2121, "FtpRoot\\", this)) {
+		UpdateLog(_T("[警告] FTP 监听启动失败，文件传输功能不可用"));
+	} else {
+		UpdateLog(_T("[启动] FTP 监听端口 2121，根目录 FtpRoot\\"));
+	}
+
 	UpdateStatus(_T("正在监听..."));
 	GetDlgItem(IDC_BUTTON_START)->EnableWindow(FALSE);
 	GetDlgItem(IDC_EDIT_PORT)->EnableWindow(FALSE);
@@ -694,6 +731,7 @@ void CNetworkServerDlg::OnBnClickedButtonStop() {
 
 	// 阶段 1：停止接受新连接
 	m_listenSocket.Stop();
+	m_ftpListenSocket.Stop();
 
 	// 阶段 2：复制列表 → 逐个关闭（不持锁调用 Stop，避免死锁）
 	std::vector<CConnectSocket*> sockets;
