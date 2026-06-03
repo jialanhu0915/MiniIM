@@ -195,6 +195,7 @@
     <ClInclude Include="CAddFriendDlg.h" />
     <ClInclude Include="CConnectSocket.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="FtpHelper.h" />
     <ClInclude Include="NetworkClient.h" />
     <ClInclude Include="NetworkClientDlg.h" />
     <ClInclude Include="pch.h" />
@@ -204,6 +205,7 @@
   <ItemGroup>
     <ClCompile Include="CAddFriendDlg.cpp" />
     <ClCompile Include="CConnectSocket.cpp" />
+    <ClCompile Include="FtpHelper.cpp" />
     <ClCompile Include="NetworkClient.cpp" />
     <ClCompile Include="NetworkClientDlg.cpp" />
     <ClCompile Include="pch.cpp">

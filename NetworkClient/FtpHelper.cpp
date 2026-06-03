@@ -4,23 +4,22 @@
  * @author Yan Runxin
  * @date   2026-05-25
  */
-
+#include "pch.h"
 #include "FtpHelper.h"
 
 FtpHelper::FtpHelper()
     : m_hInternet(nullptr)
     , m_hFtp(nullptr)
     , m_dwLastError(0)
-{
-}
+{}
 
 FtpHelper::~FtpHelper() {
     Disconnect();
 }
 
 bool FtpHelper::Connect(const std::wstring& server, int port,
-                         const std::wstring& user,
-                         const std::wstring& password) {
+    const std::wstring& user,
+    const std::wstring& password) {
     Disconnect();  // 先断开旧连接
 
     // 1. 打开 WinInet 会话
@@ -65,14 +64,14 @@ void FtpHelper::Disconnect() {
 }
 
 bool FtpHelper::UploadFile(const std::wstring& localFile,
-                            const std::wstring& remoteFile) {
+    const std::wstring& remoteFile) {
     if (!m_hFtp) return false;
 
     // 处理二进制文件：FTP_TRANSFER_TYPE_BINARY
     // ASCII 模式会破坏图片/zip 等二进制文件
     // 可以用 INTERNET_FLAG_TRANSFER_ASCII 或 INTERNET_FLAG_TRANSFER_BINARY
     if (!FtpPutFileW(m_hFtp, localFile.c_str(), remoteFile.c_str(),
-                     FTP_TRANSFER_TYPE_BINARY, 0)) {
+        FTP_TRANSFER_TYPE_BINARY, 0)) {
         m_dwLastError = GetLastError();
         return false;
     }
@@ -80,16 +79,16 @@ bool FtpHelper::UploadFile(const std::wstring& localFile,
 }
 
 bool FtpHelper::DownloadFile(const std::wstring& remoteFile,
-                              const std::wstring& localFile) {
+    const std::wstring& localFile) {
     if (!m_hFtp) return false;
 
     // 若本地文件已存在，FtpGetFile 默认会失败
     // INTERNET_FLAG_RELOAD 强制覆盖
     if (!FtpGetFileW(m_hFtp, remoteFile.c_str(), localFile.c_str(),
-                     FALSE,                                    // 不覆盖已存在的文件
-                     FILE_ATTRIBUTE_NORMAL,
-                     FTP_TRANSFER_TYPE_BINARY,
-                     0)) {
+        FALSE,                                    // 不覆盖已存在的文件
+        FILE_ATTRIBUTE_NORMAL,
+        FTP_TRANSFER_TYPE_BINARY,
+        0)) {
         m_dwLastError = GetLastError();
         return false;
     }
@@ -112,7 +111,7 @@ long long FtpHelper::GetFileSize(const std::wstring& remoteFile) {
     // 使用 FtpFindFirstFile 获取文件信息
     WIN32_FIND_DATAW findData = {};
     HINTERNET hFind = FtpFindFirstFileW(m_hFtp, remoteFile.c_str(),
-                                         &findData, 0, 0);
+        &findData, 0, 0);
     if (!hFind) {
         m_dwLastError = GetLastError();
         return -1;
@@ -121,7 +120,7 @@ long long FtpHelper::GetFileSize(const std::wstring& remoteFile) {
 
     // 组合高低位得到 64 位文件大小
     LARGE_INTEGER size;
-    size.LowPart  = findData.nFileSizeLow;
+    size.LowPart = findData.nFileSizeLow;
     size.HighPart = findData.nFileSizeHigh;
     return size.QuadPart;
 }
@@ -132,11 +131,12 @@ std::wstring FtpHelper::GetLastErrorMessage() const {
     // WinInet 错误需要 InternetGetLastResponseInfo 获取详细描述
     if (m_dwLastError >= INTERNET_ERROR_BASE &&
         m_dwLastError <= INTERNET_ERROR_LAST) {
+        DWORD dwError = m_dwLastError;   // 局部变量，绕过 const 限制
         DWORD dwBufLen = 0;
-        InternetGetLastResponseInfoW(&m_dwLastError, nullptr, &dwBufLen);
+        InternetGetLastResponseInfoW(&dwError, nullptr, &dwBufLen);
         if (dwBufLen > 0) {
             std::wstring msg(dwBufLen, L'\0');
-            InternetGetLastResponseInfoW(&m_dwLastError, &msg[0], &dwBufLen);
+            InternetGetLastResponseInfoW(&dwError, &msg[0], &dwBufLen);
             msg.resize(dwBufLen);
             return msg;
         }

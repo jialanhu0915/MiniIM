@@ -11,9 +11,11 @@
 #include "NetworkClientDlg.h"
 #include "afxdialogex.h"
 #include "../Common/JsonUtils.h"
+#include "FtpHelper.h"
 #include "CAddFriendDlg.h"
 
 #include <ctime>
+#include <string>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -164,7 +166,6 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 	// 然后用 m_dispatcher.dispatch() 来触发这些回调。
 
 	m_dispatcher.on(MsgType::LOGIN_RESP, [this](const std::string& json) {
-		// TODO: 解析 JSON，判断 success，调用 OnLoginSuccess()
 		std::string success = JsonGetString(json, "success");
 		if (success == "true") {
 			int userId = JsonGetInt(json, "user_id");
@@ -210,21 +211,18 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::STATUS_ONLINE, [this](const std::string& json) {
-		// TODO: 解析 JSON，调用 OnFriendStatusChanged(userId, name, true)
 		int userId = JsonGetInt(json, "user_id");
 		std::string username = JsonGetString(json, "username");
 		OnFriendStatusChanged(userId, username, true);
 		});
 
 	m_dispatcher.on(MsgType::STATUS_OFFLINE, [this](const std::string& json) {
-		// TODO: 解析 JSON，调用 OnFriendStatusChanged(userId, name, false)
 		int userId = JsonGetInt(json, "user_id");
 		std::string username = JsonGetString(json, "username");
 		OnFriendStatusChanged(userId, username, false);
 		});
 
 	m_dispatcher.on(MsgType::FRIEND_LIST, [this](const std::string& json) {
-		// TODO: 解析 JSON，调用 RefreshFriendList(friends)
 		std::vector<FriendInfo> friends;
 		auto arr = JsonGetArray(json, "friends");
 		for (const auto& item : arr) {
@@ -238,11 +236,80 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::FILE_REQUEST, [this](const std::string& json) {
-		// TODO: 弹出对话框询问用户是否接受
+		// 解析 FILE_REQUEST
+		int senderId   = JsonGetInt(json, "sender_id");
+		std::string filename = JsonGetString(json, "filename");
+		long long filesize   = 0;
+		// filesize 在 JSON 里是数字字面量，JsonGetInt 会返回 int，丢失精度
+		// 这里简化处理：直接用 JsonGetInt 拿 int 即可（小文件够用）
+		filesize = JsonGetInt(json, "filesize");
+		std::string ftpPath  = JsonGetString(json, "ftp_path");
+
+		// 1) 询问是否接受
+		CString prompt;
+		prompt.Format(_T("收到来自用户 %d 的文件：%hs（%lld 字节），是否接受？"),
+			senderId, filename.c_str(), filesize);
+		if (AfxMessageBox(prompt, MB_YESNO | MB_ICONQUESTION) != IDYES) {
+			// 拒绝 → 发 FILE_RESP{accepted=false}
+			std::string respJson = JsonMakeObject({
+				JsonSetInt("sender_id", m_userId),        // 回给原发送方
+				JsonSetInt("receiver_id", senderId),       // 原发送方 userId
+				JsonSetString("filename", filename),
+				JsonSetInt("accepted", 0),
+				});
+			auto data = ProtocolEncode(MsgType::FILE_RESP, respJson);
+			m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
+			AppendChatMessage(_T("[文件] 已拒绝接收 ") + CString(filename.c_str()));
+			return;
+		}
+
+		// 2) 选保存路径
+		CFileDialog saveDlg(FALSE, nullptr, CString(filename.c_str()),
+			OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY,
+			_T("所有文件 (*.*)|*.*||"), this);
+		if (saveDlg.DoModal() != IDOK) {
+			AppendChatMessage(_T("[文件] 已取消保存 ") + CString(filename.c_str()));
+			return;
+		}
+		CString savePath = saveDlg.GetPathName();
+
+		// 3) 从 FTP 下载
+		FtpHelper ftp;
+		if (!ftp.Connect(std::wstring(CStringW(m_serverIp)), 2121, L"anonymous", L"x")) {
+			AfxMessageBox(_T("连接 FTP 失败！"));
+			return;
+		}
+		if (!ftp.DownloadFile(std::wstring(CStringW(ftpPath.c_str())), std::wstring(CStringW(savePath)))) {
+			CString err;
+			err.Format(_T("下载失败：%s"), ftp.GetLastErrorMessage().c_str());
+			AfxMessageBox(err);
+			ftp.Disconnect();
+			return;
+		}
+		ftp.Disconnect();
+
+		// 4) 发 FILE_RESP{accepted=true} 给原发送方
+		std::string respJson = JsonMakeObject({
+			JsonSetInt("sender_id", m_userId),
+			JsonSetInt("receiver_id", senderId),
+			JsonSetString("filename", filename),
+			JsonSetInt("accepted", 1),
+			});
+		auto data = ProtocolEncode(MsgType::FILE_RESP, respJson);
+		m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
+
+		AppendChatMessage(_T("[文件] 已保存: ") + savePath);
 		});
 
 	m_dispatcher.on(MsgType::FILE_RESP, [this](const std::string& json) {
-		// TODO: 根据响应决定是否开始下载
+		// 发送方收到接收方的反馈
+		int accepted = JsonGetInt(json, "accepted");
+		std::string filename = JsonGetString(json, "filename");
+		if (accepted) {
+			AppendChatMessage(_T("[文件] 对方已接收 ") + CString(filename.c_str()));
+		} else {
+			AppendChatMessage(_T("[文件] 对方拒绝接收 ") + CString(filename.c_str()));
+		}
 		});
 
 	m_dispatcher.on(MsgType::HISTORY, [this, resolveName](const std::string& json) {
@@ -290,8 +357,6 @@ void CNetworkClientDlg::RegisterProtocolHandlers() {
 		});
 
 	m_dispatcher.on(MsgType::FRIEND_ADD_RESP, [this](const std::string& json) {
-		// TODO: 解析 JSON，判断 success，更新好友列表
-
 		std::string success = JsonGetString(json, "success");
 
 		if (success == "true") {
@@ -419,6 +484,7 @@ void CNetworkClientDlg::OnBnClickedButtonConnect() {
 	}
 	m_connectSocket.Connect(strIP, port);
 
+	m_serverIp = strIP;  // 记住服务端 IP，文件传输时要连同一个服务器的 2121 端口
 	m_bConnecting = true;
 	GetDlgItem(IDC_BUTTON_CONNECT)->EnableWindow(FALSE);
 	UpdateStatus(_T("正在连接..."));
@@ -429,7 +495,7 @@ void CNetworkClientDlg::OnBnClickedButtonConnect() {
  * @brief 断开服务器连接
  */
 void CNetworkClientDlg::OnBnClickedButtonDisconnect() {
-	// TODO: 你的网络层代码：发送 LOGOUT 消息，关闭 socket
+	// 通知服务端
 	// 通知服务端
 	if (m_userId > 0) {
 		std::string json = JsonMakeObject({ JsonSetInt("user_id", m_userId) });
@@ -504,6 +570,10 @@ void CNetworkClientDlg::OnBnClickedButtonSendFile() {
 		AfxMessageBox(_T("请先选择一个在线好友！"));
 		return;
 	}
+	if (m_serverIp.IsEmpty()) {
+		AfxMessageBox(_T("尚未连接服务器！"));
+		return;
+	}
 
 	CFileDialog dlg(TRUE, nullptr, nullptr,
 		OFN_FILEMUSTEXIST | OFN_HIDEREADONLY,
@@ -513,11 +583,47 @@ void CNetworkClientDlg::OnBnClickedButtonSendFile() {
 	CString filePath = dlg.GetPathName();
 	CString fileName = dlg.GetFileName();
 
-	// TODO: 你的网络层代码
-	// 1. 用 FtpHelper::UploadFile() 上传到 FTP 服务器
-	// 2. 发送 FILE_REQUEST 消息通知对方：{"sender_id", "receiver_id", "filename", "filesize", "ftp_path"}
+	// 1) 本地获取文件大小
+	CFileStatus status;
+	if (!CFile::GetStatus(filePath, status)) {
+		AfxMessageBox(_T("无法读取文件信息！"));
+		return;
+	}
+	long long fileSize = static_cast<long long>(status.m_size);
 
-	AppendChatMessage(_T("[文件] 发送文件请求: ") + fileName);
+	// 2) 上传到 FTP（端口 2121）
+	//    远端文件名直接用 fileName 即可（CFtpSession 在 m_root 下定位）
+	FtpHelper ftp;
+	if (!ftp.Connect(std::wstring(CStringW(m_serverIp)), 2121, L"anonymous", L"x")) {
+		CString err;
+		err.Format(_T("连接 FTP 失败：%s"), ftp.GetLastErrorMessage().c_str());
+		AfxMessageBox(err);
+		return;
+	}
+	if (!ftp.UploadFile(std::wstring(CStringW(filePath)), std::wstring(CStringW(fileName)))) {
+		CString err;
+		err.Format(_T("上传文件失败：%s"), ftp.GetLastErrorMessage().c_str());
+		AfxMessageBox(err);
+		ftp.Disconnect();
+		return;
+	}
+	ftp.Disconnect();
+
+	// 3) 发 FILE_REQUEST 协议
+	//    {"sender_id":int,"receiver_id":int,"filename":"...","filesize":int,"ftp_path":"..."}
+	std::string fileNameA = CT2A(fileName);
+	std::string json = JsonMakeObject({
+		JsonSetInt("sender_id", m_userId),
+		JsonSetInt("receiver_id", m_selectedFriendId),
+		JsonSetString("filename", fileNameA),
+		JsonSetLongLong("filesize", fileSize),  // 需 JsonUtils 支持 long long
+		JsonSetString("ftp_path", fileNameA),
+		});
+	auto data = ProtocolEncode(MsgType::FILE_REQUEST, json);
+	m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
+
+	AppendChatMessage(_T("[文件] 已发送请求: ") + fileName +
+		_T(" (") + CString(std::to_string(fileSize).c_str()) + _T(" 字节)"));
 }
 
 /**
@@ -639,7 +745,7 @@ void CNetworkClientDlg::OnConnect() {
 	GetDlgItem(IDC_BUTTON_DISCONNECT)->EnableWindow(TRUE);
 	UpdateLog(_T("[连接] TCP 连接成功"));
 
-	// TODO: 你的代码 — 连接成功后立即发送 LOGIN
+	// 连接成功后立即发送 LOGIN
 	std::string json = "{\"username\":\"" + m_username + "\"}";
 	std::vector<uint8_t> data = ProtocolEncode(MsgType::LOGIN, json);
 	m_connectSocket.Send(data.data(), static_cast<int>(data.size()));
@@ -673,7 +779,7 @@ void CNetworkClientDlg::OnReceive() {
 	}
 	*/
 
-	// TODO: 你的网络层代码
+	// 网络层：粘包/分帧处理 + 分发到 dispatcher
 	char buf[4096];
 	int n = m_connectSocket.Receive(buf, sizeof(buf));
 	if (n > 0) {

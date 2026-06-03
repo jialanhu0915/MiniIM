@@ -18,10 +18,10 @@
 
 #pragma comment(lib, "wininet.lib")
 
-/**
- * @brief FTP 文件传输 RAII 封装类
- * @note 基于 WinInet，构造即连接，析构自动断开。禁止拷贝。
- */
+ /**
+  * @brief FTP 文件传输 RAII 封装类
+  * @note 基于 WinInet，构造即连接，析构自动断开。禁止拷贝。
+  */
 class FtpHelper
 {
 public:
@@ -46,8 +46,8 @@ public:
      * @return      成功返回 true
      */
     bool Connect(const std::wstring& server, int port = 21,
-                 const std::wstring& user = L"anonymous",
-                 const std::wstring& password = L"");
+        const std::wstring& user = L"anonymous",
+        const std::wstring& password = L"");
 
     /**
      * @brief  断开 FTP 连接
@@ -68,7 +68,7 @@ public:
      * @return      成功返回 true
      */
     bool UploadFile(const std::wstring& localFile,
-                    const std::wstring& remoteFile);
+        const std::wstring& remoteFile);
 
     /**
      * @brief       从 FTP 服务器下载文件到本地
@@ -77,7 +77,7 @@ public:
      * @return      成功返回 true
      */
     bool DownloadFile(const std::wstring& remoteFile,
-                      const std::wstring& localFile);
+        const std::wstring& localFile);
 
     /**
      * @brief       删除 FTP 服务器上的文件

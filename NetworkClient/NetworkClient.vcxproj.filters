@@ -39,6 +39,9 @@
     <ClInclude Include="CAddFriendDlg.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="FtpHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NetworkClient.cpp">
@@ -54,6 +57,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="CAddFriendDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="FtpHelper.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

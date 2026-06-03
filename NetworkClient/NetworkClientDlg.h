@@ -138,6 +138,7 @@ public:
     // ================================================================
     int         m_userId    = -1;         ///< 当前登录用户 ID
     std::string m_username;                ///< 当前登录用户名
+    CString     m_serverIp;               ///< 已连接的服务端 IP（用于 FTP 上传/下载）
     bool        m_bConnecting = false;    ///< 正在连接中（防止重复点连接）
 
     // ---- RecvBuffer & Dispatcher（网络层在 OnReceive 中使用） ----

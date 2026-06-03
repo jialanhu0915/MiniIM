@@ -66,6 +66,16 @@ inline std::string JsonSetInt(const std::string& key, int value) {
 }
 
 /**
+ * @brief 构造 64 位整数字段（用于大文件 filesize 等）
+ * @param key 字段名
+ * @param value 64 位整数值
+ * @return "key":123 片段（不含外层 {}）
+ */
+inline std::string JsonSetLongLong(const std::string& key, long long value) {
+    return "\"" + key + "\":" + std::to_string(value);
+}
+
+/**
  * @brief 将多个 JSON 片段拼装成完整 JSON 对象
  * @param pairs initializer_list of JSON 片段
  * @return {"k1":v1,...}
