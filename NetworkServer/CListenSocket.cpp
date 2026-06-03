@@ -86,7 +86,7 @@ void CListenSocket::AcceptLoop()
 		SOCKET clientSock = accept(m_socket, (sockaddr*)&clientAddr, &addrLen);
 		if (clientSock == INVALID_SOCKET) break;
 
-		// TODO: 创建 CConnectSocket 对象，传入 clientSock 和 clientAddr.sin_addr
+		// 创建 CConnectSocket 对象，传入 clientSock 和 clientAddr.sin_addr
 		CConnectSocket* p = new CConnectSocket;
 		p->m_socket = clientSock;
 		p->m_pDlg = m_pDlg;

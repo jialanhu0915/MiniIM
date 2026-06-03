@@ -4,8 +4,6 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/common/">
-    <File Path="Common/FtpHelper.cpp" />
-    <File Path="Common/FtpHelper.h" />
     <File Path="Common/JsonUtils.h" />
     <File Path="Common/Protocol.h" />
   </Folder>
