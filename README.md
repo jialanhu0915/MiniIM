@@ -1,12 +1,19 @@
-# ComputerNetworkProgramming
+# MiniIM
 
-A C/S instant messaging (IM) system for learning network programming. MFC + Windows Sockets.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue.svg)]()
+[![MFC](https://img.shields.io/badge/MFC-Dynamic-green.svg)]()
+[![Build: MSBuild](https://img.shields.io/badge/Build-MSBuild-orange.svg)]()
+
+A C/S instant messaging (IM) system for learning network programming. MFC + Windows Sockets, with a built-in FTP relay for file transfer.
 
 ```
-NetworkServer/   Server (MFC dialog)
-NetworkClient/   Client (MFC dialog)
+NetworkServer/   Server (MFC dialog, also runs an FTP relay on port 2121)
+NetworkClient/   Client (MFC dialog, uses WinInet for FTP upload/download)
 Common/          Shared: Protocol.h, JsonUtils.h
 ```
+
+**Companion repo**: [MiniFtpServer](https://github.com/jialanhu0915/MiniFtpServer) — the standalone FTP server whose core was integrated here for file transfer.
 
 ## Features
 
