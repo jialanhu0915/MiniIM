@@ -24,6 +24,9 @@ mono_crash.*
 x64/
 x86/
 [Ww][Ii][Nn]32/
+# Allow third-party prebuilt binaries under ThirdParty/ even if they live in x64/ etc.
+!/ThirdParty/**/x64/
+!/ThirdParty/**/x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
