@@ -82,6 +82,7 @@ CNetworkServerDlg::CNetworkServerDlg(CWnd* pParent)
 void CNetworkServerDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST_USERS, m_userList);
+	DDX_Control(pDX, IDC_LIST_LOG, m_logList);
 	DDX_Control(pDX, IDC_BUTTON_START, m_btnStart);
 	DDX_Control(pDX, IDC_BUTTON_STOP, m_btnStop);
 }
@@ -135,6 +136,14 @@ BOOL CNetworkServerDlg::OnInitDialog() {
 	// ---- 初始化在线用户列表 ----
 	m_userList.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 	m_userList.InsertColumn(0, _T("用户名"), LVCFMT_LEFT, 100);
+
+	// ---- 初始化日志列表（每行一条日志，避免 CEdit 多行渲染 overlap）----
+	// 列宽 800 比控件宽 275 大，确保 WS_HSCROLL 出滚动条，长 JSON 也能横向看完
+	m_logList.SetExtendedStyle(LVS_EX_FULLROWSELECT);
+	m_logList.InsertColumn(0, _T(""), LVCFMT_LEFT, 800);  // LVS_NOCOLUMNHEADER 隐藏列头
+	// SysListView32 默认用自己的字体（不含 CJK glyph 会显示成 tofu 豆腐块），
+	// 强制继承对话框字体，对话框字体在中文系统下会被映射到 Microsoft YaHei UI
+	m_logList.SetFont(GetFont());
 	m_userList.InsertColumn(1, _T("IP 地址"), LVCFMT_LEFT, 110);
 
 	// ---- 注册协议处理器 ----
@@ -842,19 +851,16 @@ void CNetworkServerDlg::OnUserLogoutUI(int userId, const std::string& username) 
 }
 
 /**
- * @brief  向日志编辑框追加一行文本
+ * @brief  向日志列表追加一行文本
  * @param  str  要追加的日志文本
- * @note   自动滚动到最新行
+ * @note   用 CListCtrl 替代原来的 CEdit，每行独立 row，从根本上避免
+ *         CEdit 多行控件快速连续修改时的 paint 撕裂 / 文字重叠问题
  */
 void CNetworkServerDlg::UpdateLog(const CString& str) {
-	CString strLog;
-	GetDlgItemText(IDC_EDIT_LOG, strLog);
-	strLog += str + _T("\r\n");
-	SetDlgItemText(IDC_EDIT_LOG, strLog);
-
-	int nLen = GetDlgItem(IDC_EDIT_LOG)->SendMessage(WM_GETTEXTLENGTH);
-	GetDlgItem(IDC_EDIT_LOG)->SendMessage(EM_SETSEL, nLen, nLen);
-	GetDlgItem(IDC_EDIT_LOG)->SendMessage(EM_SCROLLCARET);
+	const int nRow = m_logList.InsertItem(m_logList.GetItemCount(), str);
+	if (nRow >= 0) {
+		m_logList.EnsureVisible(nRow, FALSE);
+	}
 }
 
 /**

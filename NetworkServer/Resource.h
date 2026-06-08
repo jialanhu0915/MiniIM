@@ -11,7 +11,7 @@
 #define IDC_BUTTON_STOP                 1001
 #define IDC_EDIT_PORT                   1002
 #define IDC_STATIC_PORT                 1003
-#define IDC_EDIT_LOG                    1004
+#define IDC_LIST_LOG                    1004
 #define IDC_STATIC_STATUS               1006
 #define IDC_EDIT_MSG                    1015
 #define IDC_STATIC_MSG                  1016

@@ -97,6 +97,7 @@ void CNetworkClientDlg::DoDataExchange(CDataExchange* pDX) {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_EDIT_USERNAME, m_editUsername);
 	DDX_Control(pDX, IDC_LIST_FRIENDS, m_friendList);
+	DDX_Control(pDX, IDC_LIST_LOG, m_logList);
 	DDX_Control(pDX, IDC_BUTTON_ADDFRIEND, m_btnAddFriend);
 	DDX_Control(pDX, IDC_BUTTON_REMOVEFRIEND, m_btnRemoveFriend);
 	DDX_Control(pDX, IDC_BUTTON_SENDFILE, m_btnSendFile);
@@ -144,6 +145,14 @@ BOOL CNetworkClientDlg::OnInitDialog() {
 	m_btnSendFile.m_bDrawFocus = FALSE;
 	m_btnSendFile.SetFaceColor(RGB(129, 199, 132), RGB(90, 165, 95));     // 柔和绿
 	m_btnSendFile.SetTextColor(RGB(255, 255, 255));
+
+	// ---- 初始化日志/聊天列表（每行一条，避免 CEdit 多行渲染 overlap）----
+	// 列宽 800 比控件宽 275 大，确保 WS_HSCROLL 出滚动条，长 JSON 也能横向看完
+	m_logList.SetExtendedStyle(LVS_EX_FULLROWSELECT);
+	m_logList.InsertColumn(0, _T(""), LVCFMT_LEFT, 800);  // LVS_NOCOLUMNHEADER 隐藏列头
+	// SysListView32 默认用自己的字体（不含 CJK glyph 会显示成 tofu 豆腐块），
+	// 强制继承对话框字体，对话框字体在中文系统下会被映射到 Microsoft YaHei UI
+	m_logList.SetFont(GetFont());
 
 	// ---- 注册协议处理器（示例） ----
 	RegisterProtocolHandlers();
@@ -853,14 +862,16 @@ void CNetworkClientDlg::OnClose() {
 }
 
 /**
- * @brief 在日志区追加一行文本
+ * @brief 在日志列表追加一行文本
  * @param str 日志内容
+ * @note   用 CListCtrl 替代原来的 CEdit，每行独立 row，从根本上避免
+ *         CEdit 多行控件快速连续修改时的 paint 撕裂 / 文字重叠问题
  */
 void CNetworkClientDlg::UpdateLog(const CString& str) {
-	CString strLog;
-	GetDlgItemText(IDC_EDIT_LOG, strLog);
-	strLog += str + _T("\r\n");
-	SetDlgItemText(IDC_EDIT_LOG, strLog);
+	const int nRow = m_logList.InsertItem(m_logList.GetItemCount(), str);
+	if (nRow >= 0) {
+		m_logList.EnsureVisible(nRow, FALSE);
+	}
 }
 
 // ============================================================================
@@ -1006,15 +1017,11 @@ void CNetworkClientDlg::UpdateStatus(const CString& text) {
 /**
  * @brief 在聊天区追加一条消息
  * @param msg 聊天消息文本
+ * @note   复用 m_logList，与 UpdateLog 走同一渲染路径，不再走 CEdit
  */
 void CNetworkClientDlg::AppendChatMessage(const CString& msg) {
-	CString strLog;
-	GetDlgItemText(IDC_EDIT_LOG, strLog);
-	strLog += msg + _T("\r\n");
-	SetDlgItemText(IDC_EDIT_LOG, strLog);
-
-	// 自动滚动到底部
-	int nLen = GetDlgItem(IDC_EDIT_LOG)->SendMessage(WM_GETTEXTLENGTH);
-	GetDlgItem(IDC_EDIT_LOG)->SendMessage(EM_SETSEL, nLen, nLen);
-	GetDlgItem(IDC_EDIT_LOG)->SendMessage(EM_SCROLLCARET);
+	const int nRow = m_logList.InsertItem(m_logList.GetItemCount(), msg);
+	if (nRow >= 0) {
+		m_logList.EnsureVisible(nRow, FALSE);
+	}
 }

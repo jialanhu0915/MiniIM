@@ -194,6 +194,7 @@ private:
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 
 	CListCtrl   m_userList;     ///< 用户列表控件（显示在线用户）
+	CListCtrl   m_logList;      ///< 日志列表控件（每行一条日志，避免 CEdit 多行渲染 overlap）
 	CMFCButton  m_btnStart;     ///< 启动监听按钮（柔和绿，Office 扁平风）
 	CMFCButton  m_btnStop;      ///< 停止监听按钮（柔和红，Office 扁平风）
 	HICON       m_hIcon;        ///< 对话框图标句柄

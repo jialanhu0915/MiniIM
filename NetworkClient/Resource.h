@@ -8,7 +8,7 @@
 #define IDD_NETWORKCLIENT_DIALOG        102
 #define IDR_MAINFRAME                   128
 #define IDD_DIALOG_ADD_FRIEND           130
-#define IDC_EDIT_LOG                    1004
+#define IDC_LIST_LOG                    1004
 #define IDC_STATIC_STATUS               1006
 #define IDC_STATIC_IP                   1011
 #define IDC_IPADDRESS                   1012

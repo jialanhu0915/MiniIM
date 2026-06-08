@@ -181,10 +181,11 @@ private:
 
     // ---- 好友列表 ----
     CListBox   m_friendList;         ///< 好友列表框
+    CListCtrl  m_logList;            ///< 日志/聊天列表（每行一条，避免 CEdit 多行渲染 overlap）
     CMFCButton m_btnAddFriend;       ///< 添加好友按钮（Office 扁平风）
     CMFCButton m_btnRemoveFriend;    ///< 删除好友按钮（Office 扁平风）
 
-    // ---- 聊天区（复用 IDC_EDIT_LOG，m_chatDisplay 字段已删除）----
+    // ---- 聊天区（m_logList，日志/聊天共用，每行一条）----
 
     // ---- 文件传输 ----
     CMFCButton m_btnSendFile;        ///< 发送文件按钮（Office 扁平风）
