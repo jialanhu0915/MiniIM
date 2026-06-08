@@ -367,3 +367,5 @@ FodyWeavers.xsd
 
 # Project-specific
 FtpRoot/
+# SQLite 测试数据库 — 每次跑程序都重写，不入库
+NetworkServer/chat_history.db
